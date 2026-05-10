@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react'
 import { APPROVED, APPROVED_CATEGORIES } from '../data/foods.js'
+import { useLanguage } from '../context/LanguageContext.jsx'
 
 export default function ApprovedFoods() {
+  const { t } = useLanguage()
   const [search, setSearch] = useState('')
 
   const filtered = useMemo(() => {
@@ -22,11 +24,11 @@ export default function ApprovedFoods() {
       {/* Header */}
       <div className="text-center mb-10">
         <div className="inline-flex items-center gap-2 bg-sage-100 text-sage-700 rounded-full px-4 py-1.5 text-sm font-semibold mb-4">
-          ✅ The Green List
+          {t('approved.badge')}
         </div>
-        <h2 className="text-4xl font-black text-stone-800 mb-3">Approved Anti-Inflammatory Foods</h2>
+        <h2 className="text-4xl font-black text-stone-800 mb-3">{t('approved.title')}</h2>
         <p className="text-stone-500 max-w-lg mx-auto">
-          Every item here actively reduces inflammation. Shop this list, eat from this list, heal from this list.
+          {t('approved.sub')}
         </p>
       </div>
 
@@ -37,23 +39,23 @@ export default function ApprovedFoods() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search foods..."
+            placeholder={t('approved.searchPlaceholder')}
             className="w-full pl-9 pr-4 py-2.5 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sage-300"
           />
         </div>
         {search && (
           <button onClick={() => setSearch('')} className="text-sm text-stone-400 hover:text-stone-600 transition-colors">
-            Clear
+            {t('approved.clearSearch')}
           </button>
         )}
-        <div className="text-sm text-stone-400 font-medium whitespace-nowrap">{totalVisible} foods</div>
+        <div className="text-sm text-stone-400 font-medium whitespace-nowrap">{totalVisible} {t('approved.foods')}</div>
       </div>
 
       {/* No results */}
       {totalVisible === 0 ? (
         <div className="text-center py-16 text-stone-400">
           <div className="text-5xl mb-4">🔍</div>
-          <p className="font-medium">No foods match "{search}"</p>
+          <p className="font-medium">{t('approved.noResults')} "{search}"</p>
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -66,7 +68,7 @@ export default function ApprovedFoods() {
                   <span className="text-2xl">{cat.emoji}</span>
                   <div>
                     <h3 className="font-bold text-sm leading-tight">{cat.label}</h3>
-                    <span className="text-xs opacity-60">{items.length} item{items.length !== 1 ? 's' : ''}</span>
+                    <span className="text-xs opacity-60">{items.length} {items.length !== 1 ? t('approved.items') : t('approved.item')}</span>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -85,7 +87,7 @@ export default function ApprovedFoods() {
       {/* Pro tip */}
       <div className="mt-10 bg-gradient-to-r from-sage-50 to-turmeric-50 border border-sage-200 rounded-2xl p-6 text-center">
         <p className="text-stone-600 text-sm max-w-2xl mx-auto">
-          <strong className="text-stone-800">Pro tip:</strong> Build your plate around the proteins and vegetables first, then add a grain or healthy fat. Herbs and spices aren't just flavor — they're medicine. Turmeric + black pepper together are especially powerful.
+          <strong className="text-stone-800">{t('approved.proTip')}</strong> {t('approved.proTipText')}
         </p>
       </div>
     </section>

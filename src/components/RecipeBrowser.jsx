@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react'
 import { RECIPES } from '../data/recipes.js'
+import { useLanguage } from '../context/LanguageContext.jsx'
 import MealCard from './MealCard.jsx'
 import RecipeModal from './RecipeModal.jsx'
 
 const TYPE_FILTERS = ['all', 'breakfast', 'lunch', 'dinner', 'snack']
-const TIME_FILTERS = [['all', 'Any Time'], ['10', '<10 min'], ['20', '<20 min'], ['30', '<30 min']]
-const ING_FILTERS  = [['all', 'Any Ingredient'], ['protein', 'Protein'], ['vegetables', 'Veggies'], ['grain', 'Grains'], ['fruit', 'Fruit'], ['fats', 'Healthy Fats']]
+const TIME_FILTERS = [['all', 'anyTime'], ['10', '<10 min'], ['20', '<20 min'], ['30', '<30 min']]
+const ING_FILTERS  = [['all', 'anyIngredient'], ['protein', 'protein'], ['vegetables', 'veggies'], ['grain', 'grains'], ['fruit', 'fruit'], ['fats', 'healthyFats']]
 
 function FilterBtn({ active, onClick, children, activeClass }) {
   return (
@@ -19,6 +20,7 @@ function FilterBtn({ active, onClick, children, activeClass }) {
 }
 
 export default function RecipeBrowser() {
+  const { t } = useLanguage()
   const [typeFilter, setTypeFilter] = useState('all')
   const [timeFilter, setTimeFilter] = useState('all')
   const [ingFilter,  setIngFilter]  = useState('all')
@@ -35,69 +37,65 @@ export default function RecipeBrowser() {
 
   const clearAll = () => { setTypeFilter('all'); setTimeFilter('all'); setIngFilter('all'); setSearch('') }
 
+  const typeLabel = (type) => type === 'all' ? t('recipes.allTypes') : type
+
   return (
     <section id="recipes" className="py-20 px-4 max-w-6xl mx-auto">
       {modal && <RecipeModal recipe={modal} calMode={false} onClose={() => setModal(null)} />}
 
-      {/* Header */}
       <div className="text-center mb-10">
         <div className="inline-flex items-center gap-2 bg-coral-100 text-coral-600 rounded-full px-4 py-1.5 text-sm font-semibold mb-4">
-          📖 Recipe Library
+          {t('recipes.badge')}
         </div>
-        <h2 className="text-4xl font-black text-stone-800 mb-3">All {RECIPES.length} Recipes</h2>
-        <p className="text-stone-500">Every single one fights inflammation and takes under 30 minutes.</p>
+        <h2 className="text-4xl font-black text-stone-800 mb-3">{RECIPES.length} {t('recipes.title')}</h2>
+        <p className="text-stone-500">{t('recipes.sub')}</p>
       </div>
 
-      {/* Filter bar */}
       <div className="bg-white rounded-2xl border border-stone-100 p-4 mb-8 space-y-4">
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search recipes..."
+          placeholder={t('recipes.searchPlaceholder')}
           className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sage-300"
         />
 
         <div className="flex flex-wrap gap-3">
-          {/* Type */}
           <div className="flex flex-wrap gap-1.5">
-            {TYPE_FILTERS.map(t => (
-              <FilterBtn key={t} active={typeFilter === t} onClick={() => setTypeFilter(t)} activeClass="bg-sage-400 text-white">
-                {t === 'all' ? 'All Types' : t}
+            {TYPE_FILTERS.map(type => (
+              <FilterBtn key={type} active={typeFilter === type} onClick={() => setTypeFilter(type)} activeClass="bg-sage-400 text-white">
+                {typeLabel(type)}
               </FilterBtn>
             ))}
           </div>
 
-          {/* Time */}
           <div className="flex flex-wrap gap-1.5">
-            {TIME_FILTERS.map(([val, label]) => (
+            {TIME_FILTERS.map(([val, key]) => (
               <FilterBtn key={val} active={timeFilter === val} onClick={() => setTimeFilter(val)} activeClass="bg-turmeric-400 text-white">
-                {label}
+                {val === 'all' ? t('recipes.anyTime') : key}
               </FilterBtn>
             ))}
           </div>
 
-          {/* Ingredient */}
           <div className="flex flex-wrap gap-1.5">
-            {ING_FILTERS.map(([val, label]) => (
+            {ING_FILTERS.map(([val, key]) => (
               <FilterBtn key={val} active={ingFilter === val} onClick={() => setIngFilter(val)} activeClass="bg-coral-400 text-white">
-                {label}
+                {val === 'all' ? t('recipes.anyIngredient') : t(`recipes.${key}`)}
               </FilterBtn>
             ))}
           </div>
         </div>
 
         <p className="text-xs text-stone-400 font-medium">
-          {filtered.length} recipe{filtered.length !== 1 ? 's' : ''} found
+          {filtered.length} {t('recipes.title').toLowerCase()} {t('recipes.found')}
         </p>
       </div>
 
-      {/* Empty state */}
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-stone-400">
           <div className="text-5xl mb-4">🔍</div>
-          <p className="font-medium">No recipes match your filters</p>
+          <p className="font-medium">{t('recipes.noMatch')}</p>
           <button onClick={clearAll} className="mt-3 text-sage-500 font-semibold text-sm hover:underline">
-            Clear all filters
+            {t('recipes.clearFilters')}
           </button>
         </div>
       ) : (

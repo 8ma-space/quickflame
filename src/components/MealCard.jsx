@@ -1,3 +1,5 @@
+import { useLanguage } from '../context/LanguageContext.jsx'
+
 function ScoreBadge({ score }) {
   return (
     <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${score === 'High' ? 'bg-sage-100 text-sage-700' : 'bg-turmeric-100 text-turmeric-600'}`}>
@@ -7,6 +9,7 @@ function ScoreBadge({ score }) {
 }
 
 export default function MealCard({ recipe, calMode, label, onExpand }) {
+  const { t } = useLanguage()
   return (
     <div
       className="meal-plan-print bg-white rounded-2xl shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-200 cursor-pointer group"
@@ -39,8 +42,8 @@ export default function MealCard({ recipe, calMode, label, onExpand }) {
       <div className="p-4">
         <h3 className="font-bold text-stone-800 mb-1 leading-snug">{recipe.name}</h3>
         <div className="flex items-center gap-3 text-xs text-stone-500 mb-3">
-          <span>⏱ {recipe.prepTime} min</span>
-          {calMode && <span className="text-turmeric-500 font-semibold">🔥 {recipe.calories} cal</span>}
+          <span>⏱ {recipe.prepTime} {t('recipes.min')}</span>
+          {calMode && <span className="text-turmeric-500 font-semibold">🔥 {recipe.calories} {t('recipes.cal')}</span>}
         </div>
 
         {/* Ingredient chips */}
@@ -55,7 +58,7 @@ export default function MealCard({ recipe, calMode, label, onExpand }) {
           })}
         </div>
 
-        <span className="text-xs text-sage-500 font-semibold">View full recipe →</span>
+        <span className="text-xs text-sage-500 font-semibold">{t('recipes.viewRecipe')}</span>
       </div>
     </div>
   )

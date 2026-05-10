@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { DIETS, DIET_GROUPS } from '../data/diets.js'
+import { useLanguage } from '../context/LanguageContext.jsx'
 
 export default function DietPreferences({ dietId, allergies, onChange }) {
+  const { t } = useLanguage()
   const [open, setOpen] = useState(false)
   const [localDiet, setLocalDiet]         = useState(dietId)
   const [localAllergies, setLocalAllergies] = useState(allergies)
@@ -23,11 +25,11 @@ export default function DietPreferences({ dietId, allergies, onChange }) {
         <div className="flex items-center gap-3">
           <span className="text-2xl">{selected.emoji}</span>
           <div className="text-left">
-            <div className="text-xs text-stone-400 font-semibold uppercase tracking-wide">Diet & Allergies</div>
+            <div className="text-xs text-stone-400 font-semibold uppercase tracking-wide">{t('diet.title')}</div>
             <div className="text-stone-800 font-bold text-sm">
               {selected.label}
               {localAllergies?.trim() && (
-                <span className="ml-2 text-coral-500 font-normal">· Allergies set</span>
+                <span className="ml-2 text-coral-500 font-normal">{t('diet.allergiesSet')}</span>
               )}
             </div>
           </div>
@@ -40,7 +42,7 @@ export default function DietPreferences({ dietId, allergies, onChange }) {
         <div className="mt-2 bg-white border border-stone-200 rounded-2xl shadow-sm p-5 slide-up">
 
           {/* Diet selector */}
-          <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-3">Your Diet Type</p>
+          <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-3">{t('diet.yourDiet')}</p>
           <div className="space-y-4 mb-6">
             {DIET_GROUPS.map(group => (
               <div key={group}>
@@ -72,25 +74,25 @@ export default function DietPreferences({ dietId, allergies, onChange }) {
           </div>
 
           {/* Allergy input */}
-          <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-2">Allergies / Intolerances</p>
+          <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-2">{t('diet.allergiesLabel')}</p>
           <textarea
             value={localAllergies}
             onChange={e => setLocalAllergies(e.target.value)}
-            placeholder="e.g. peanuts, tree nuts, shellfish, soy, sesame..."
+            placeholder={t('diet.allergiesPlaceholder')}
             className="w-full h-20 rounded-xl border border-stone-200 p-3 text-sm text-stone-700 placeholder-stone-300 resize-none focus:outline-none focus:ring-2 focus:ring-sage-300"
           />
-          <p className="text-xs text-stone-400 mt-1 mb-4">Separate with commas. Any recipe containing these will be removed.</p>
+          <p className="text-xs text-stone-400 mt-1 mb-4">{t('diet.allergiesHint')}</p>
 
           {/* Save */}
           <div className="flex justify-end gap-3">
             <button onClick={() => setOpen(false)} className="text-sm text-stone-400 hover:text-stone-600 px-4 py-2">
-              Cancel
+              {t('diet.cancel')}
             </button>
             <button
               onClick={save}
               className="bg-gradient-to-r from-sage-400 to-sage-500 text-white font-bold px-6 py-2.5 rounded-xl hover:from-sage-500 hover:to-sage-600 transition-all shadow-sm"
             >
-              Save Preferences
+              {t('diet.save')}
             </button>
           </div>
         </div>

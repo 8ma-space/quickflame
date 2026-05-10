@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ALL_APPROVED_FLAT, INFLAMMATORY } from '../data/foods.js'
+import { useLanguage } from '../context/LanguageContext.jsx'
 
 // COCO-SSD detectable food items mapped to our ingredient names
 const COCO_FOOD_MAP = {
@@ -36,6 +37,7 @@ function boxColor(foodName) {
 }
 
 export default function CameraScanner({ onAddItems, onClose }) {
+  const { t } = useLanguage()
   const videoRef   = useRef(null)
   const canvasRef  = useRef(null)
   const streamRef  = useRef(null)
@@ -188,8 +190,8 @@ export default function CameraScanner({ onAddItems, onClose }) {
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-stone-100">
             <div>
-              <h2 className="font-black text-stone-800 text-lg">Review Scanned Groceries</h2>
-              <p className="text-stone-400 text-sm mt-0.5">Edit, add, or remove items before saving</p>
+              <h2 className="font-black text-stone-800 text-lg">{t('camera.reviewTitle')}</h2>
+              <p className="text-stone-400 text-sm mt-0.5">{t('camera.reviewSub')}</p>
             </div>
             <button onClick={onClose} className="w-9 h-9 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-500 font-bold transition-colors">
               ✕
@@ -200,10 +202,10 @@ export default function CameraScanner({ onAddItems, onClose }) {
             {/* Detected count */}
             <div className="flex items-center gap-2 mb-4">
               <span className="bg-sage-100 text-sage-700 text-xs font-bold px-2.5 py-1 rounded-full">
-                {lines.length} item{lines.length !== 1 ? 's' : ''} detected
+                {lines.length} {lines.length !== 1 ? t('camera.itemsDetected') : t('camera.itemDetected')}
               </span>
               {lines.length === 0 && (
-                <span className="text-stone-400 text-xs">Nothing detected — type items manually below</span>
+                <span className="text-stone-400 text-xs">{t('camera.nothingDetected')}</span>
               )}
             </div>
 
@@ -211,12 +213,12 @@ export default function CameraScanner({ onAddItems, onClose }) {
             <textarea
               value={editText}
               onChange={e => setEditText(e.target.value)}
-              placeholder="Type groceries here, one per line or comma-separated..."
+              placeholder={t('camera.textareaPlaceholder')}
               className="w-full h-52 rounded-2xl border border-stone-200 p-4 text-stone-700 placeholder-stone-300 resize-none focus:outline-none focus:ring-2 focus:ring-sage-300 text-sm leading-relaxed"
               autoFocus
             />
             <p className="text-xs text-stone-400 mt-2">
-              One item per line, or comma-separated. You can type anything — items will be classified automatically.
+              {t('camera.textareaHint')}
             </p>
 
             {/* Preview chips */}
@@ -246,14 +248,14 @@ export default function CameraScanner({ onAddItems, onClose }) {
               onClick={() => { setScanning(true); setDetectedItems(new Set()); setPredictions([]) }}
               className="flex-1 border border-stone-200 text-stone-600 font-semibold py-3 rounded-xl hover:bg-stone-50 transition-colors text-sm"
             >
-              📷 Scan Again
+              {t('camera.scanAgain')}
             </button>
             <button
               onClick={confirmList}
               disabled={lines.length === 0}
               className="flex-1 bg-gradient-to-r from-sage-400 to-sage-500 text-white font-bold py-3 rounded-xl hover:from-sage-500 hover:to-sage-600 transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed text-sm"
             >
-              ✅ Add to My List
+              {t('camera.addToList')}
             </button>
           </div>
         </div>
@@ -267,15 +269,15 @@ export default function CameraScanner({ onAddItems, onClose }) {
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-3 bg-black/80">
         <div className="flex items-center gap-2">
-          <span className="text-white font-bold text-lg">📷 Fridge Scanner</span>
+          <span className="text-white font-bold text-lg">{t('camera.title')}</span>
           {status === 'loading' && (
             <span className="flex items-center gap-1.5 text-turmeric-300 text-sm">
               <div className="w-4 h-4 border-2 border-turmeric-300 border-t-transparent rounded-full animate-spin" />
-              Loading AI model...
+              {t('camera.loadingModel')}
             </span>
           )}
           {status === 'ready' && (
-            <span className="text-sage-400 text-sm font-medium">● Live detection</span>
+            <span className="text-sage-400 text-sm font-medium">{t('camera.liveDetection')}</span>
           )}
         </div>
         <button onClick={onClose} className="text-white/60 hover:text-white w-9 h-9 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 transition-colors font-bold">
@@ -292,8 +294,8 @@ export default function CameraScanner({ onAddItems, onClose }) {
           <div className="absolute inset-0 flex items-center justify-center bg-black/80">
             <div className="text-center text-white p-6">
               <div className="text-5xl mb-3">📵</div>
-              <p className="font-bold text-lg mb-1">Camera access denied</p>
-              <p className="text-white/60 text-sm">Allow camera access in your browser settings and try again.</p>
+              <p className="font-bold text-lg mb-1">{t('camera.denied')}</p>
+              <p className="text-white/60 text-sm">{t('camera.deniedSub')}</p>
             </div>
           </div>
         )}
@@ -301,13 +303,13 @@ export default function CameraScanner({ onAddItems, onClose }) {
         {status === 'loading' && (
           <div className="absolute bottom-4 left-4 right-4 bg-black/70 rounded-xl p-4 text-white text-sm text-center">
             <div className="w-6 h-6 border-2 border-turmeric-400 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-            Loading food recognition model... (~5 seconds first time)
+            {t('camera.loadingOverlay')}
           </div>
         )}
 
         {status === 'ready' && foodPreds.length > 0 && (
           <div className="absolute top-4 right-4 bg-black/70 backdrop-blur rounded-xl p-3 max-w-48">
-            <p className="text-white/60 text-xs font-semibold uppercase tracking-wide mb-2">Detected</p>
+            <p className="text-white/60 text-xs font-semibold uppercase tracking-wide mb-2">{t('camera.detected')}</p>
             {foodPreds.map((p, i) => {
               const name = COCO_FOOD_MAP[p.class] || p.class
               const approved = isApproved(name)
@@ -325,7 +327,7 @@ export default function CameraScanner({ onAddItems, onClose }) {
         {status === 'ready' && foodPreds.length === 0 && (
           <div className="absolute inset-0 flex items-end justify-center pb-32 pointer-events-none">
             <div className="bg-black/60 backdrop-blur rounded-xl px-5 py-3 text-white text-sm text-center">
-              📦 Point the camera at your groceries or fridge
+              {t('camera.pointCamera')}
             </div>
           </div>
         )}
@@ -356,7 +358,7 @@ export default function CameraScanner({ onAddItems, onClose }) {
             disabled={status !== 'ready'}
             className="flex-1 bg-gradient-to-r from-turmeric-400 to-coral-400 text-white font-bold py-3 rounded-xl hover:from-turmeric-500 hover:to-coral-500 transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            ⏹ Stop & Review List
+            {t('camera.stopBtn')}
           </button>
 
           {/* Clear */}
@@ -368,7 +370,7 @@ export default function CameraScanner({ onAddItems, onClose }) {
         </div>
 
         <p className="text-white/30 text-xs text-center">
-          Uses on-device AI · nothing leaves your phone · powered by TensorFlow.js
+          {t('camera.onDevice')}
         </p>
       </div>
     </div>

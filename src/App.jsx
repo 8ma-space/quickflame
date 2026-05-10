@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Toaster, toast } from 'react-hot-toast'
+import { LanguageProvider, useLanguage } from './context/LanguageContext.jsx'
 import Navbar from './components/Navbar.jsx'
 import Hero from './components/Hero.jsx'
 import MealPlanner from './components/MealPlanner.jsx'
@@ -51,6 +52,15 @@ export default function App() {
   }, [])
 
   return (
+    <LanguageProvider>
+      <AppInner active={active} scrollTo={scrollTo} prefs={prefs} savePrefs={savePrefs} addToast={addToast} />
+    </LanguageProvider>
+  )
+}
+
+function AppInner({ active, scrollTo, prefs, savePrefs, addToast }) {
+  const { t } = useLanguage()
+  return (
     <div className="min-h-screen bg-stone-50 text-stone-800">
       <Toaster position="bottom-right" toastOptions={{ duration: 3500 }} />
       <Navbar active={active} scrollTo={scrollTo} />
@@ -63,8 +73,8 @@ export default function App() {
         <div className="flex items-center justify-center gap-2 text-white font-bold text-lg mb-2">
           <span>🔥</span> QuickFlame
         </div>
-        <p>Eat to Heal. Fast. — Anti-inflammatory meals in 30 minutes or less.</p>
-        <p className="mt-1 text-xs text-white/30">Based on Cleveland Clinic anti-inflammatory dietary guidelines.</p>
+        <p>{t('footer.tagline')}</p>
+        <p className="mt-1 text-xs text-white/30">{t('footer.credit')}</p>
       </footer>
     </div>
   )

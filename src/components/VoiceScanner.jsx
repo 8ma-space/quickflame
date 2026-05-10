@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { ALL_APPROVED_FLAT, INFLAMMATORY } from '../data/foods.js'
+import { useLanguage } from '../context/LanguageContext.jsx'
 
 const normalize = (s) => s.toLowerCase().replace(/[^a-z\s]/g, '').trim()
 
@@ -23,6 +24,7 @@ function parseSpokenItems(text) {
 const SUPPORTED = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
 
 export default function VoiceScanner({ onAddItems, onClose }) {
+  const { t } = useLanguage()
   const recognitionRef = useRef(null)
 
   const [phase, setPhase]             = useState('listening') // listening | review
@@ -113,8 +115,8 @@ export default function VoiceScanner({ onAddItems, onClose }) {
         <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg slide-up">
           <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-stone-100">
             <div>
-              <h2 className="font-black text-stone-800 text-lg">Review Spoken Groceries</h2>
-              <p className="text-stone-400 text-sm mt-0.5">Edit, add, or remove items before saving</p>
+              <h2 className="font-black text-stone-800 text-lg">{t('voice.reviewTitle')}</h2>
+              <p className="text-stone-400 text-sm mt-0.5">{t('voice.reviewSub')}</p>
             </div>
             <button onClick={onClose} className="w-9 h-9 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-500 font-bold transition-colors">✕</button>
           </div>
@@ -122,21 +124,21 @@ export default function VoiceScanner({ onAddItems, onClose }) {
           <div className="px-6 py-5">
             <div className="flex items-center gap-2 mb-4">
               <span className="bg-sage-100 text-sage-700 text-xs font-bold px-2.5 py-1 rounded-full">
-                {lines.length} item{lines.length !== 1 ? 's' : ''} recognised
+                {lines.length} {lines.length !== 1 ? t('voice.itemsRecognised') : t('voice.itemRecognised')}
               </span>
               {lines.length === 0 && (
-                <span className="text-stone-400 text-xs">Nothing heard — type items manually below</span>
+                <span className="text-stone-400 text-xs">{t('voice.nothingHeard')}</span>
               )}
             </div>
 
             <textarea
               value={editText}
               onChange={e => setEditText(e.target.value)}
-              placeholder="Type groceries here, one per line or comma-separated..."
+              placeholder={t('voice.textareaPlaceholder')}
               className="w-full h-52 rounded-2xl border border-stone-200 p-4 text-stone-700 placeholder-stone-300 resize-none focus:outline-none focus:ring-2 focus:ring-sage-300 text-sm leading-relaxed"
               autoFocus
             />
-            <p className="text-xs text-stone-400 mt-2">One item per line or comma-separated. Items are classified automatically.</p>
+            <p className="text-xs text-stone-400 mt-2">{t('voice.textareaHint')}</p>
 
             {lines.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-3">
@@ -161,14 +163,14 @@ export default function VoiceScanner({ onAddItems, onClose }) {
               onClick={restart}
               className="flex-1 border border-stone-200 text-stone-600 font-semibold py-3 rounded-xl hover:bg-stone-50 transition-colors text-sm"
             >
-              🎤 Speak Again
+              {t('voice.speakAgain')}
             </button>
             <button
               onClick={confirmList}
               disabled={lines.length === 0}
               className="flex-1 bg-gradient-to-r from-sage-400 to-sage-500 text-white font-bold py-3 rounded-xl hover:from-sage-500 hover:to-sage-600 transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed text-sm"
             >
-              ✅ Add to My List
+              {t('voice.addToList')}
             </button>
           </div>
         </div>
@@ -186,9 +188,9 @@ export default function VoiceScanner({ onAddItems, onClose }) {
       {error === 'not-supported' && (
         <div className="text-center text-white">
           <div className="text-5xl mb-4">🎙️</div>
-          <p className="font-bold text-lg mb-2">Voice not supported</p>
-          <p className="text-white/60 text-sm max-w-xs">Your browser doesn't support speech recognition. Try Chrome on Android or desktop.</p>
-          <button onClick={onClose} className="mt-6 bg-white/10 text-white font-semibold px-6 py-3 rounded-xl hover:bg-white/20 transition-colors">Close</button>
+          <p className="font-bold text-lg mb-2">{t('voice.notSupported')}</p>
+          <p className="text-white/60 text-sm max-w-xs">{t('voice.notSupportedSub')}</p>
+          <button onClick={onClose} className="mt-6 bg-white/10 text-white font-semibold px-6 py-3 rounded-xl hover:bg-white/20 transition-colors">{t('voice.close')}</button>
         </div>
       )}
 
@@ -196,9 +198,9 @@ export default function VoiceScanner({ onAddItems, onClose }) {
       {error === 'permission' && (
         <div className="text-center text-white">
           <div className="text-5xl mb-4">🔇</div>
-          <p className="font-bold text-lg mb-2">Microphone access denied</p>
-          <p className="text-white/60 text-sm max-w-xs">Allow microphone access in your browser settings and try again.</p>
-          <button onClick={onClose} className="mt-6 bg-white/10 text-white font-semibold px-6 py-3 rounded-xl hover:bg-white/20 transition-colors">Close</button>
+          <p className="font-bold text-lg mb-2">{t('voice.permissionDenied')}</p>
+          <p className="text-white/60 text-sm max-w-xs">{t('voice.permissionSub')}</p>
+          <button onClick={onClose} className="mt-6 bg-white/10 text-white font-semibold px-6 py-3 rounded-xl hover:bg-white/20 transition-colors">{t('voice.close')}</button>
         </div>
       )}
 
@@ -226,10 +228,10 @@ export default function VoiceScanner({ onAddItems, onClose }) {
           </div>
 
           <p className="text-white font-bold text-xl mb-1">
-            {listening ? 'Listening...' : 'Tap mic to start'}
+            {listening ? t('voice.listening') : t('voice.tapToStart')}
           </p>
           <p className="text-white/50 text-sm mb-8 text-center max-w-xs">
-            Say your groceries naturally — "I have salmon, spinach, blueberries and eggs"
+            {t('voice.instruction')}
           </p>
 
           {/* Live transcript */}
@@ -240,7 +242,7 @@ export default function VoiceScanner({ onAddItems, onClose }) {
                 {interim && <span className="text-white/50 italic"> {interim}</span>}
               </p>
             ) : (
-              <p className="text-white/30 text-sm italic text-center mt-4">Your words will appear here...</p>
+              <p className="text-white/30 text-sm italic text-center mt-4">{t('voice.transcript')}</p>
             )}
           </div>
 
@@ -267,10 +269,10 @@ export default function VoiceScanner({ onAddItems, onClose }) {
             onClick={stopAndReview}
             className="bg-gradient-to-r from-turmeric-400 to-coral-400 text-white font-bold px-8 py-3.5 rounded-xl hover:from-turmeric-500 hover:to-coral-500 transition-all shadow-lg text-sm"
           >
-            ⏹ Stop & Review List
+            {t('voice.stopBtn')}
           </button>
 
-          <p className="text-white/20 text-xs mt-4">Processed entirely on your device — nothing is sent anywhere</p>
+          <p className="text-white/20 text-xs mt-4">{t('voice.onDevice')}</p>
         </>
       )}
     </div>

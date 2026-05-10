@@ -1,14 +1,16 @@
 import { useEffect } from 'react'
+import { useLanguage } from '../context/LanguageContext.jsx'
 
-function ScoreBadge({ score }) {
+function ScoreBadge({ score, aiScoreLabel }) {
   return (
     <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${score === 'High' ? 'bg-sage-100 text-sage-700' : 'bg-turmeric-100 text-turmeric-600'}`}>
-      {score === 'High' ? '🌿' : '⭐'} {score} AI Score
+      {score === 'High' ? '🌿' : '⭐'} {score} {aiScoreLabel}
     </span>
   )
 }
 
 export default function RecipeModal({ recipe, calMode, onClose }) {
+  const { t } = useLanguage()
   useEffect(() => {
     const esc = (e) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', esc)
@@ -45,13 +47,13 @@ export default function RecipeModal({ recipe, calMode, onClose }) {
             ✕
           </button>
           <div className="absolute bottom-4 left-4 flex gap-2 flex-wrap">
-            <ScoreBadge score={recipe.score} />
+            <ScoreBadge score={recipe.score} aiScoreLabel={t('modal.aiScore')} />
             <span className="bg-white/90 backdrop-blur text-xs font-semibold px-2 py-0.5 rounded-full text-stone-700">
-              ⏱ {recipe.prepTime} min
+              ⏱ {recipe.prepTime} {t('modal.min')}
             </span>
             {calMode && (
               <span className="bg-turmeric-400 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
-                🔥 {recipe.calories} cal
+                🔥 {recipe.calories} {t('modal.cal')}
               </span>
             )}
           </div>
@@ -66,7 +68,7 @@ export default function RecipeModal({ recipe, calMode, onClose }) {
           <div className="mb-6">
             <h3 className="font-bold text-stone-700 mb-3 flex items-center gap-2">
               <span className="w-6 h-6 bg-sage-100 rounded-full flex items-center justify-center text-xs text-sage-600 font-bold">1</span>
-              Ingredients
+              {t('modal.ingredients')}
             </h3>
             <ul className="space-y-2">
               {recipe.ingredients.map((ing, i) => (
@@ -82,7 +84,7 @@ export default function RecipeModal({ recipe, calMode, onClose }) {
           <div>
             <h3 className="font-bold text-stone-700 mb-3 flex items-center gap-2">
               <span className="w-6 h-6 bg-turmeric-100 rounded-full flex items-center justify-center text-xs text-turmeric-600 font-bold">2</span>
-              Instructions
+              {t('modal.instructions')}
             </h3>
             <ol className="space-y-3">
               {recipe.instructions.map((step, i) => (
