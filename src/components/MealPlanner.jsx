@@ -345,13 +345,13 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
             {/* Shopping list */}
             <div>
               <div className="flex items-center gap-3 mb-4 px-1">
-                <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">Recommended Groceries to Buy</p>
+                <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">Recommended Shopping List</p>
                 <span className="bg-turmeric-100 text-turmeric-700 text-xs font-bold px-2.5 py-1 rounded-full">{result.shoppingList.length} items</span>
               </div>
 
               <div className="bg-gradient-to-r from-turmeric-50 to-sage-50 border border-turmeric-200 rounded-2xl p-5 mb-6">
                 <p className="text-stone-700 text-sm leading-relaxed">
-                  <strong>Here's what to buy next.</strong> These ingredients unlock the most new recipes that match your diet — grab the ones at the top for maximum variety this week.
+                  <strong>Recommended Shopping List.</strong> These ingredients unlock the most new recipes that match your diet — grab the ones at the top for maximum variety this week.
                 </p>
               </div>
 
