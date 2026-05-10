@@ -35,59 +35,79 @@ function matchScore(recipe, normalizedHave) {
   ).length
 }
 
-// Pick best-matching recipe per meal type — only picks recipes that use what the user has
-function generatePlanFromGroceries(approvedItems, prefs, calMode) {
-  const normalized = approvedItems.map(normalize)
-  const eligible   = RECIPES.filter(r => recipeMatchesPreferences(r, prefs.dietId, prefs.allergies))
+// Pick one recipe of a given type, excluding already-used IDs
+function pickBest(type, eligible, normalized, usedIds) {
+  const pool = eligible.filter(r => r.type === type && !usedIds.has(r.id))
+  const fallback = eligible.filter(r => r.type === type) // allow reuse if pool exhausted
+  const source = pool.length ? pool : fallback
+  if (!source.length) return null
 
-  const pickBest = (type) => {
-    const pool = eligible.filter(r => r.type === type)
-    if (!pool.length) return null
-    if (!normalized.length) return shuffle(pool)[0]
-
-    const scored = pool
-      .map(r => ({ ...r, _ms: matchScore(r, normalized) }))
-      .sort((a, b) => b._ms - a._ms)
-
-    // Prefer recipes where user has at least one ingredient; fall back only if none match
-    const withMatches = scored.filter(r => r._ms > 0)
-    const candidates  = (withMatches.length > 0 ? withMatches : scored).slice(0, 5)
-    return shuffle(candidates)[0]
+  if (!normalized.length) {
+    const r = shuffle(source)[0]
+    usedIds.add(r.id)
+    return r
   }
+  const scored = source
+    .map(r => ({ ...r, _ms: matchScore(r, normalized) }))
+    .sort((a, b) => b._ms - a._ms)
+  const withMatches = scored.filter(r => r._ms > 0)
+  const candidates  = (withMatches.length > 0 ? withMatches : scored).slice(0, 8)
+  const r = shuffle(candidates)[0]
+  usedIds.add(r.id)
+  return r
+}
 
-  const breakfast = pickBest('breakfast')
-  const lunch     = pickBest('lunch')
-  const dinner    = pickBest('dinner')
+// Generate meals for one day
+function generateDay(eligible, normalized, usedIds, calMode) {
+  const breakfast = pickBest('breakfast', eligible, normalized, usedIds)
+  const lunch     = pickBest('lunch',     eligible, normalized, usedIds)
+  const dinner    = pickBest('dinner',    eligible, normalized, usedIds)
 
   const snackPool = eligible
-    .filter(r => r.type === 'snack')
+    .filter(r => r.type === 'snack' && !usedIds.has(r.id))
     .map(r => ({ ...r, _ms: matchScore(r, normalized) }))
     .sort((a, b) => b._ms - a._ms)
   const snackCandidates = normalized.length ? snackPool.filter(r => r._ms > 0).slice(0, 10) : snackPool.slice(0, 10)
-  const snacks = shuffle(snackCandidates.length ? snackCandidates : snackPool.slice(0, 10)).slice(0, 2)
+  const snackSource = snackCandidates.length ? snackCandidates : snackPool
+  const snack = snackSource.length ? shuffle(snackSource)[0] : null
+  if (snack) usedIds.add(snack.id)
 
-  let plan = [breakfast, lunch, dinner, ...snacks].filter(Boolean)
-
+  let meals = [breakfast, lunch, dinner, snack].filter(Boolean)
   if (calMode) {
-    let total = plan.reduce((s, r) => s + r.calories, 0)
-    while (total > 1900 && plan.length > 3) {
-      plan = plan.slice(0, -1)
-      total = plan.reduce((s, r) => s + r.calories, 0)
+    let total = meals.reduce((s, r) => s + r.calories, 0)
+    while (total > 1900 && meals.length > 3) {
+      meals = meals.slice(0, -1)
+      total = meals.reduce((s, r) => s + r.calories, 0)
     }
   }
+  return meals
+}
 
-  return plan
+function generatePlan(approvedItems, prefs, calMode, weekMode) {
+  const normalized = approvedItems.map(normalize)
+  const eligible   = RECIPES.filter(r => recipeMatchesPreferences(r, prefs.dietId, prefs.allergies))
+  const usedIds    = new Set()
+
+  if (!weekMode) {
+    const meals = generateDay(eligible, normalized, usedIds, calMode)
+    return { week: [meals], single: true }
+  }
+
+  const week = []
+  for (let d = 0; d < 7; d++) {
+    week.push(generateDay(eligible, normalized, usedIds, calMode))
+  }
+  return { week, single: false }
 }
 
 // Strip quantity/unit prefix from an ingredient string
 const UNIT_RE = /^\d[\d\s./]*(?:tbsp?|tsp?|cups?|oz|lbs?|g|ml|cloves?|slices?|pieces?|inch(?:es)?|cm|pinch(?:es)?|handful|dash|to\s+taste)\.?\s*/i
 
-// Shopping list: every ingredient from the meal plan that the user doesn't already have
-function buildShoppingList(plan, approvedItems) {
+function buildShoppingList(week, approvedItems) {
   const normalizedHave = approvedItems.map(normalize)
-  const needed = new Map() // normalized key → { display, recipes }
+  const needed = new Map()
 
-  plan.forEach(recipe => {
+  week.flat().forEach(recipe => {
     recipe.ingredients.forEach(ingRaw => {
       const clean = ingRaw
         .replace(UNIT_RE, '')
@@ -153,19 +173,19 @@ function Skeleton() {
   )
 }
 
-const MEAL_LABELS = ['Breakfast', 'Lunch', 'Dinner', 'Snack 1', 'Snack 2']
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
   const { t } = useLanguage()
   const [groceries, setGroceries] = useState(() => localStorage.getItem('qf_groceries') || '')
-  const [calMode, setCalMode]     = useState(false)
-  const [loading, setLoading]     = useState(false)
-  const [result, setResult]       = useState(null)
-  const [modal, setModal]         = useState(null)
-  const [camera, setCamera]       = useState(false)
-  const [voice, setVoice]         = useState(false)
+  const [calMode,   setCalMode]   = useState(false)
+  const [weekMode,  setWeekMode]  = useState(false)
+  const [loading,   setLoading]   = useState(false)
+  const [result,    setResult]    = useState(null)
+  const [activeDay, setActiveDay] = useState(0)
+  const [modal,     setModal]     = useState(null)
+  const [camera,    setCamera]    = useState(false)
+  const [voice,     setVoice]     = useState(false)
 
   useEffect(() => { localStorage.setItem('qf_groceries', groceries) }, [groceries])
 
@@ -178,18 +198,17 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
     setVoice(false)
   }
 
-  const printShoppingList = (shoppingList, plan) => {
+  const printShoppingList = (shoppingList, week) => {
     const title = t('planner.shopTitle')
-    const mealNames = plan.map(r => r.name).join(', ')
     const rows = shoppingList
-      .map(item => `<tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid #f0ede8;font-size:14px;text-transform:capitalize;">${item.ingredient}</td><td style="padding:6px 0;border-bottom:1px solid #f0ede8;font-size:12px;color:#888;">${item.recipes.join(', ')}</td></tr>`)
+      .map(item => `<tr><td style="padding:7px 16px 7px 0;border-bottom:1px solid #f0ede8;font-size:14px;text-transform:capitalize;vertical-align:top;">${item.ingredient}</td><td style="padding:7px 0;border-bottom:1px solid #f0ede8;font-size:12px;color:#888;vertical-align:top;">${item.recipes.join(', ')}</td></tr>`)
       .join('')
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
-<style>body{font-family:system-ui,sans-serif;max-width:600px;margin:40px auto;color:#1c1917;}h1{font-size:22px;font-weight:900;margin-bottom:4px;}p{font-size:12px;color:#888;margin:0 0 24px;}table{width:100%;border-collapse:collapse;}th{text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#a8a29e;padding-bottom:8px;border-bottom:2px solid #e7e5e4;}@media print{body{margin:20px;}}</style>
+<style>body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;color:#1c1917;}h1{font-size:22px;font-weight:900;margin-bottom:4px;}p{font-size:12px;color:#888;margin:0 0 24px;}table{width:100%;border-collapse:collapse;}th{text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#a8a29e;padding-bottom:8px;border-bottom:2px solid #e7e5e4;}@media print{body{margin:20px;}}</style>
 </head><body>
 <h1>🛒 ${title}</h1>
-<p>${mealNames}</p>
-<table><thead><tr><th>Item</th><th>For</th></tr></thead><tbody>${rows}</tbody></table>
+<p>${shoppingList.length} items · ${week.flat().length} meals</p>
+<table><thead><tr><th>Item</th><th>Used in</th></tr></thead><tbody>${rows}</tbody></table>
 </body></html>`
     const w = window.open('', '_blank', 'width=700,height=600')
     w.document.write(html)
@@ -201,24 +220,29 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
   const generate = () => {
     setLoading(true)
     setResult(null)
+    setActiveDay(0)
     setTimeout(() => {
-      const classified    = classifyFoods(groceries)
-      const plan          = generatePlanFromGroceries(classified.approved, prefs, calMode)
-      const shoppingList  = buildShoppingList(plan, classified.approved)
+      const classified   = classifyFoods(groceries)
+      const { week, single } = generatePlan(classified.approved, prefs, calMode, weekMode)
+      const shoppingList = buildShoppingList(week, classified.approved)
 
       if (classified.inflammatory.length)
         addToast(`${classified.inflammatory.length} inflammatory item${classified.inflammatory.length > 1 ? 's' : ''} flagged`, 'warning')
-      if (plan.length)
-        addToast('Meal plan ready! ✨', 'success')
+      if (week.flat().length)
+        addToast(weekMode ? 'Week plan ready! ✨' : 'Meal plan ready! ✨', 'success')
       else
         addToast('No recipes match — try adjusting preferences', 'warning')
 
-      setResult({ classified, plan, shoppingList })
+      setResult({ classified, week, single, shoppingList })
       setLoading(false)
     }, 1500)
   }
 
-  const totalCal = result ? result.plan.reduce((s, r) => s + r.calories, 0) : 0
+  const dayMeals   = result ? result.week[activeDay] ?? [] : []
+  const totalCal   = dayMeals.reduce((s, r) => s + r.calories, 0)
+  const mealLabels = t('planner.mealLabels')
+  const dayShort   = t('planner.dayShort')
+  const dayNames   = t('planner.dayNames')
 
   return (
     <section id="planner" className="py-20 bg-gradient-to-b from-stone-50 to-sage-50/30">
@@ -276,15 +300,28 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
         {/* ── Step 3: Generate ── */}
         <div className="mb-10">
           <p className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-3 px-1">{t('planner.step3')}</p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 flex-wrap">
+
+            {/* Duration toggle */}
             <div className="bg-white rounded-2xl p-1.5 flex gap-1 shadow-sm border border-stone-100">
-              <button onClick={() => setCalMode(false)} className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${!calMode ? 'bg-sage-400 text-white shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}>
+              <button onClick={() => setWeekMode(false)} className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${!weekMode ? 'bg-stone-700 text-white shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}>
+                {t('planner.dayMode')}
+              </button>
+              <button onClick={() => setWeekMode(true)} className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${weekMode ? 'bg-stone-700 text-white shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}>
+                {t('planner.weekMode')}
+              </button>
+            </div>
+
+            {/* Calorie toggle */}
+            <div className="bg-white rounded-2xl p-1.5 flex gap-1 shadow-sm border border-stone-100">
+              <button onClick={() => setCalMode(false)} className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${!calMode ? 'bg-sage-400 text-white shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}>
                 {t('planner.unlimited')}
               </button>
-              <button onClick={() => setCalMode(true)} className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${calMode ? 'bg-blue-500 text-white shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}>
+              <button onClick={() => setCalMode(true)} className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${calMode ? 'bg-blue-500 text-white shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}>
                 {t('planner.calMode')}
               </button>
             </div>
+
             <button onClick={generate} disabled={loading} className="bg-gradient-to-r from-coral-400 to-coral-500 text-white font-bold px-8 py-3 rounded-xl hover:from-coral-500 hover:to-coral-600 transition-all shadow-md hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0">
               {loading ? t('planner.generating') : result ? t('planner.regenerate') : t('planner.generate')}
             </button>
@@ -293,10 +330,8 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
 
         {/* ── Loading ── */}
         {loading && (
-          <div className="space-y-8">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {[1,2,3,4,5].map(i => <Skeleton key={i} />)}
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+            {[1,2,3,4].map(i => <Skeleton key={i} />)}
           </div>
         )}
 
@@ -322,35 +357,61 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
             {/* Meal plan */}
             <div>
               <div className="flex items-center justify-between mb-4 px-1">
-                <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">{t('planner.planTitle')}</p>
-                {calMode && result.plan.length > 0 && (
+                <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">
+                  {result.single ? t('planner.planTitle') : t('planner.weekTitle')}
+                </p>
+                {calMode && dayMeals.length > 0 && (
                   <span className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-1.5 text-sm font-semibold text-blue-700">
                     📊 {totalCal} {t('planner.calories')} {totalCal >= 1700 && totalCal <= 1900 && '✅'}
                   </span>
                 )}
               </div>
 
-              {result.plan.length === 0 ? (
+              {/* Day tabs — only shown in week mode */}
+              {!result.single && (
+                <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1 hide-scroll">
+                  {result.week.map((dayMealsArr, d) => {
+                    const dayCal = dayMealsArr.reduce((s, r) => s + r.calories, 0)
+                    return (
+                      <button
+                        key={d}
+                        onClick={() => setActiveDay(d)}
+                        className={`flex-shrink-0 flex flex-col items-center px-4 py-2.5 rounded-2xl text-sm font-bold transition-all ${
+                          activeDay === d
+                            ? 'bg-sage-500 text-white shadow-md'
+                            : 'bg-white border border-stone-100 text-stone-500 hover:border-sage-200 hover:text-sage-700'
+                        }`}
+                      >
+                        <span className="text-xs font-semibold opacity-70">{dayShort[d]}</span>
+                        <span className="text-base leading-tight">{dayNames[d].slice(0, 3)}</span>
+                        {calMode && <span className="text-xs mt-0.5 opacity-60">{dayCal} cal</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Day label for week mode */}
+              {!result.single && (
+                <p className="text-sm font-bold text-stone-600 mb-4 px-1">
+                  {dayNames[activeDay]}
+                </p>
+              )}
+
+              {dayMeals.length === 0 ? (
                 <div className="text-center py-12 text-stone-400">
                   <div className="text-5xl mb-3">🥗</div>
                   <p className="font-medium">{t('planner.noMatch')}</p>
                   <p className="text-sm mt-1">{t('planner.noMatchSub')}</p>
                 </div>
               ) : (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {result.plan.map((recipe, i) => (
-                      <div key={recipe.id} className="slide-up" style={{ animationDelay: `${i * 80}ms` }}>
-                        <MealCard recipe={recipe} calMode={calMode} label={t('planner.mealLabels')[i]} onExpand={setModal} />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="text-center mt-6 no-print">
-                    <button onClick={() => window.print()} className="text-sm text-stone-400 hover:text-stone-600 transition-colors font-medium">
-                      {t('planner.print')}
-                    </button>
-                  </div>
-                </>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                  {dayMeals.map((recipe, i) => (
+                    <div key={recipe.id} className="slide-up" style={{ animationDelay: `${i * 80}ms` }}>
+                      <MealCard recipe={recipe} calMode={calMode} label={mealLabels[i]} onExpand={setModal} />
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 
@@ -376,11 +437,11 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
                 <div className="bg-white border border-stone-100 rounded-2xl divide-y divide-stone-50 shadow-sm slide-up">
                   {result.shoppingList.map((item, i) => (
                     <div key={i} className="flex items-start gap-4 px-5 py-3.5">
-                      <span className="flex-shrink-0 w-6 h-6 rounded-full border-2 border-turmeric-300 mt-0.5" />
+                      <span className="flex-shrink-0 w-5 h-5 rounded border-2 border-turmeric-300 mt-0.5" />
                       <div className="flex-1 min-w-0">
                         <span className="font-semibold text-stone-800 capitalize">{item.ingredient}</span>
                         <span className="ml-2 text-xs text-stone-400">
-                          for: {item.recipes.join(', ')}
+                          {item.recipes.slice(0, 3).join(', ')}{item.recipes.length > 3 ? ` +${item.recipes.length - 3}` : ''}
                         </span>
                       </div>
                     </div>
@@ -389,7 +450,7 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
               )}
 
               <div className="mt-6 text-center no-print">
-                <button onClick={() => printShoppingList(result.shoppingList, result.plan)} className="inline-flex items-center gap-2 text-sm text-stone-400 hover:text-stone-600 transition-colors font-medium">
+                <button onClick={() => printShoppingList(result.shoppingList, result.week)} className="inline-flex items-center gap-2 text-sm text-stone-400 hover:text-stone-600 transition-colors font-medium">
                   {t('planner.printShop')}
                 </button>
               </div>
