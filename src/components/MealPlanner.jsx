@@ -178,6 +178,26 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
     setVoice(false)
   }
 
+  const printShoppingList = (shoppingList, plan) => {
+    const title = t('planner.shopTitle')
+    const mealNames = plan.map(r => r.name).join(', ')
+    const rows = shoppingList
+      .map(item => `<tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid #f0ede8;font-size:14px;text-transform:capitalize;">${item.ingredient}</td><td style="padding:6px 0;border-bottom:1px solid #f0ede8;font-size:12px;color:#888;">${item.recipes.join(', ')}</td></tr>`)
+      .join('')
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+<style>body{font-family:system-ui,sans-serif;max-width:600px;margin:40px auto;color:#1c1917;}h1{font-size:22px;font-weight:900;margin-bottom:4px;}p{font-size:12px;color:#888;margin:0 0 24px;}table{width:100%;border-collapse:collapse;}th{text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#a8a29e;padding-bottom:8px;border-bottom:2px solid #e7e5e4;}@media print{body{margin:20px;}}</style>
+</head><body>
+<h1>🛒 ${title}</h1>
+<p>${mealNames}</p>
+<table><thead><tr><th>Item</th><th>For</th></tr></thead><tbody>${rows}</tbody></table>
+</body></html>`
+    const w = window.open('', '_blank', 'width=700,height=600')
+    w.document.write(html)
+    w.document.close()
+    w.focus()
+    w.print()
+  }
+
   const generate = () => {
     setLoading(true)
     setResult(null)
@@ -369,7 +389,7 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
               )}
 
               <div className="mt-6 text-center no-print">
-                <button onClick={() => window.print()} className="inline-flex items-center gap-2 text-sm text-stone-400 hover:text-stone-600 transition-colors font-medium">
+                <button onClick={() => printShoppingList(result.shoppingList, result.plan)} className="inline-flex items-center gap-2 text-sm text-stone-400 hover:text-stone-600 transition-colors font-medium">
                   {t('planner.printShop')}
                 </button>
               </div>
