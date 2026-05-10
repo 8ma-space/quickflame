@@ -402,20 +402,20 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
               </div>
             )}
 
-            {/* Meal plan */}
+            {/* Meal plan + shopping lists */}
             <div>
               <div className="flex items-center justify-between mb-4 px-1">
                 <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">
                   {result.single ? t('planner.planTitle') : t('planner.weekTitle')}
                 </p>
-                {calMode && dayMeals.length > 0 && (
+                {calMode && activeDay < 7 && dayMeals.length > 0 && (
                   <span className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-1.5 text-sm font-semibold text-blue-700">
                     📊 {totalCal} {t('planner.calories')} {totalCal >= 1700 && totalCal <= 1900 && '✅'}
                   </span>
                 )}
               </div>
 
-              {/* Day tabs — only shown in week mode */}
+              {/* Tab bar — day tabs + 🛒 Week tab (week mode only) */}
               {!result.single && (
                 <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1 hide-scroll">
                   {result.week.map((dayMealsArr, d) => {
@@ -436,57 +436,24 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
                       </button>
                     )
                   })}
+
+                  {/* Week shopping list tab */}
+                  <button
+                    onClick={() => setActiveDay(7)}
+                    className={`flex-shrink-0 flex flex-col items-center px-4 py-2.5 rounded-2xl text-sm font-bold transition-all ${
+                      activeDay === 7
+                        ? 'bg-turmeric-500 text-white shadow-md'
+                        : 'bg-white border border-stone-100 text-stone-500 hover:border-turmeric-300 hover:text-turmeric-700'
+                    }`}
+                  >
+                    <span className="text-lg leading-tight">🛒</span>
+                    <span className="text-xs mt-0.5">{result.weekShoppingList.length} items</span>
+                  </button>
                 </div>
               )}
 
-              {/* Day label for week mode */}
-              {!result.single && (
-                <p className="text-sm font-bold text-stone-600 mb-4 px-1">
-                  {dayNames[activeDay]}
-                </p>
-              )}
-
-              {dayMeals.length === 0 ? (
-                <div className="text-center py-12 text-stone-400">
-                  <div className="text-5xl mb-3">🥗</div>
-                  <p className="font-medium">{t('planner.noMatch')}</p>
-                  <p className="text-sm mt-1">{t('planner.noMatchSub')}</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                  {dayMeals.map((recipe, i) => (
-                    <div key={recipe.id} className="slide-up" style={{ animationDelay: `${i * 80}ms` }}>
-                      <MealCard recipe={recipe} calMode={calMode} label={mealLabels[i]} onExpand={setModal} />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Shopping list(s) */}
-            {result.single ? (
-              /* ── Single day: one list ── */
-              <ShoppingListPanel
-                title={t('planner.shopTitle')}
-                desc={t('planner.shopDesc')}
-                items={result.weekShoppingList}
-                allGood={t('planner.allGood')}
-                printLabel={t('planner.printShop')}
-                onPrint={() => printShoppingList(result.weekShoppingList, result.week, t('planner.shopTitle'))}
-                accentColor="turmeric"
-              />
-            ) : (
-              /* ── Week mode: day list + full-week list ── */
-              <div className="space-y-8">
-                <ShoppingListPanel
-                  title={`${t('planner.dayShopTitle')} — ${dayNames[activeDay]}`}
-                  desc={t('planner.shopDesc')}
-                  items={dayShoppingList}
-                  allGood={t('planner.allGood')}
-                  printLabel={t('planner.printShop')}
-                  onPrint={() => printShoppingList(dayShoppingList, [result.week[activeDay]], `${t('planner.dayShopTitle')} — ${dayNames[activeDay]}`)}
-                  accentColor="turmeric"
-                />
+              {/* ── Week shopping list tab view ── */}
+              {!result.single && activeDay === 7 ? (
                 <ShoppingListPanel
                   title={t('planner.weekShopTitle')}
                   desc={t('planner.shopDesc')}
@@ -494,10 +461,49 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
                   allGood={t('planner.allGood')}
                   printLabel={t('planner.printShop')}
                   onPrint={() => printShoppingList(result.weekShoppingList, result.week, t('planner.weekShopTitle'))}
-                  accentColor="sage"
+                  accentColor="turmeric"
                 />
-              </div>
-            )}
+              ) : (
+                /* ── Day meal cards ── */
+                <>
+                  {!result.single && (
+                    <p className="text-sm font-bold text-stone-600 mb-4 px-1">{dayNames[activeDay]}</p>
+                  )}
+
+                  {dayMeals.length === 0 ? (
+                    <div className="text-center py-12 text-stone-400">
+                      <div className="text-5xl mb-3">🥗</div>
+                      <p className="font-medium">{t('planner.noMatch')}</p>
+                      <p className="text-sm mt-1">{t('planner.noMatchSub')}</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                      {dayMeals.map((recipe, i) => (
+                        <div key={recipe.id} className="slide-up" style={{ animationDelay: `${i * 80}ms` }}>
+                          <MealCard recipe={recipe} calMode={calMode} label={mealLabels[i]} onExpand={setModal} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Shopping list below meals */}
+                  <div className="mt-10">
+                    <ShoppingListPanel
+                      title={result.single ? t('planner.shopTitle') : `${t('planner.dayShopTitle')} — ${dayNames[activeDay]}`}
+                      desc={t('planner.shopDesc')}
+                      items={result.single ? result.weekShoppingList : dayShoppingList}
+                      allGood={t('planner.allGood')}
+                      printLabel={t('planner.printShop')}
+                      onPrint={() => result.single
+                        ? printShoppingList(result.weekShoppingList, result.week, t('planner.shopTitle'))
+                        : printShoppingList(dayShoppingList, [result.week[activeDay]], `${t('planner.dayShopTitle')} — ${dayNames[activeDay]}`)
+                      }
+                      accentColor="turmeric"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
 
           </div>
         )}
