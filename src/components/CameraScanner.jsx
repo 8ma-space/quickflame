@@ -42,10 +42,12 @@ export default function CameraScanner({ onAddItems, onClose }) {
   const rafRef     = useRef(null)
   const modelRef   = useRef(null)
 
-  const [status, setStatus]           = useState('requesting') // requesting | loading | ready | error
+  const [status, setStatus]               = useState('requesting')
   const [detectedItems, setDetectedItems] = useState(new Set())
-  const [predictions, setPredictions] = useState([])
-  const [facingMode, setFacingMode]   = useState('environment') // back camera by default
+  const [predictions, setPredictions]     = useState([])
+  const [facingMode, setFacingMode]       = useState('environment')
+  const [scanning, setScanning]           = useState(true)   // true = live, false = review
+  const [editText, setEditText]           = useState('')      // editable list after stop
 
   // Load TF + model lazily
   const loadModel = useCallback(async () => {
@@ -97,7 +99,6 @@ export default function CameraScanner({ onAddItems, onClose }) {
     const preds = await modelRef.current.detect(video)
     setPredictions(preds)
 
-    // Draw bounding boxes
     const ctx = canvas.getContext('2d')
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
@@ -108,23 +109,18 @@ export default function CameraScanner({ onAddItems, onClose }) {
       const label  = mapped || pred.class
       const score  = Math.round(pred.score * 100)
 
-      // Box
       ctx.strokeStyle = color
       ctx.lineWidth   = 3
       ctx.strokeRect(x, y, w, h)
 
-      // Label background
       const text = `${label} ${score}%`
       ctx.font = 'bold 14px Inter, sans-serif'
       const tw = ctx.measureText(text).width
       ctx.fillStyle = color
       ctx.fillRect(x, y - 24, tw + 12, 24)
-
-      // Label text
       ctx.fillStyle = 'white'
       ctx.fillText(text, x + 6, y - 7)
 
-      // Add food items we actually care about
       if (COCO_FOOD_MAP[pred.class] && pred.score > 0.5) {
         const foodName = COCO_FOOD_MAP[pred.class]
         if (foodName) setDetectedItems(prev => new Set([...prev, foodName]))
@@ -149,11 +145,11 @@ export default function CameraScanner({ onAddItems, onClose }) {
 
   // Start detection loop once model is ready
   useEffect(() => {
-    if (status === 'ready') {
+    if (status === 'ready' && scanning) {
       rafRef.current = requestAnimationFrame(detect)
     }
     return () => cancelAnimationFrame(rafRef.current)
-  }, [status, detect])
+  }, [status, detect, scanning])
 
   // Flip camera
   const flipCamera = async () => {
@@ -164,16 +160,108 @@ export default function CameraScanner({ onAddItems, onClose }) {
     if (status === 'ready') rafRef.current = requestAnimationFrame(detect)
   }
 
-  // Take snapshot — freeze current detected items and add to list
-  const addToList = () => {
-    if (detectedItems.size === 0) return
-    onAddItems([...detectedItems])
+  // Stop scanning — freeze camera, enter review mode
+  const stopScanning = () => {
+    cancelAnimationFrame(rafRef.current)
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    setScanning(false)
+    // Pre-populate editable text with detected items
+    setEditText([...detectedItems].join('\n'))
+  }
+
+  // Confirm edited list and add to grocery input
+  const confirmList = () => {
+    const items = editText.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
+    if (items.length === 0) return
+    onAddItems(items)
     onClose()
   }
 
-  // All unique detected food labels for display
   const foodPreds = predictions.filter(p => COCO_FOOD_MAP[p.class] && p.score > 0.4)
 
+  // ── Review screen (after Stop Scanning) ─────────────────────────────────────
+  if (!scanning) {
+    const lines = editText.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
+    return (
+      <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 fade-in">
+        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg slide-up">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-stone-100">
+            <div>
+              <h2 className="font-black text-stone-800 text-lg">Review Scanned Groceries</h2>
+              <p className="text-stone-400 text-sm mt-0.5">Edit, add, or remove items before saving</p>
+            </div>
+            <button onClick={onClose} className="w-9 h-9 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-500 font-bold transition-colors">
+              ✕
+            </button>
+          </div>
+
+          <div className="px-6 py-5">
+            {/* Detected count */}
+            <div className="flex items-center gap-2 mb-4">
+              <span className="bg-sage-100 text-sage-700 text-xs font-bold px-2.5 py-1 rounded-full">
+                {lines.length} item{lines.length !== 1 ? 's' : ''} detected
+              </span>
+              {lines.length === 0 && (
+                <span className="text-stone-400 text-xs">Nothing detected — type items manually below</span>
+              )}
+            </div>
+
+            {/* Editable textarea */}
+            <textarea
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              placeholder="Type groceries here, one per line or comma-separated..."
+              className="w-full h-52 rounded-2xl border border-stone-200 p-4 text-stone-700 placeholder-stone-300 resize-none focus:outline-none focus:ring-2 focus:ring-sage-300 text-sm leading-relaxed"
+              autoFocus
+            />
+            <p className="text-xs text-stone-400 mt-2">
+              One item per line, or comma-separated. You can type anything — items will be classified automatically.
+            </p>
+
+            {/* Preview chips */}
+            {lines.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {lines.map((item, i) => (
+                  <span
+                    key={i}
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${
+                      isApproved(item)
+                        ? 'bg-sage-100 text-sage-700 border border-sage-200'
+                        : isInflammatory(item)
+                        ? 'bg-coral-100 text-coral-700 border border-coral-200'
+                        : 'bg-stone-100 text-stone-500 border border-stone-200'
+                    }`}
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer actions */}
+          <div className="flex gap-3 px-6 pb-6">
+            <button
+              onClick={() => { setScanning(true); setDetectedItems(new Set()); setPredictions([]) }}
+              className="flex-1 border border-stone-200 text-stone-600 font-semibold py-3 rounded-xl hover:bg-stone-50 transition-colors text-sm"
+            >
+              📷 Scan Again
+            </button>
+            <button
+              onClick={confirmList}
+              disabled={lines.length === 0}
+              className="flex-1 bg-gradient-to-r from-sage-400 to-sage-500 text-white font-bold py-3 rounded-xl hover:from-sage-500 hover:to-sage-600 transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+            >
+              ✅ Add to My List
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Live scanning screen ─────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col fade-in" onClick={e => e.target === e.currentTarget && onClose()}>
       {/* Top bar */}
@@ -197,18 +285,9 @@ export default function CameraScanner({ onAddItems, onClose }) {
 
       {/* Camera + canvas */}
       <div className="relative flex-1 overflow-hidden">
-        <video
-          ref={videoRef}
-          className="absolute inset-0 w-full h-full object-cover"
-          playsInline
-          muted
-        />
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 w-full h-full object-cover"
-        />
+        <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted />
+        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover" />
 
-        {/* Error state */}
         {status === 'error' && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/80">
             <div className="text-center text-white p-6">
@@ -219,7 +298,6 @@ export default function CameraScanner({ onAddItems, onClose }) {
           </div>
         )}
 
-        {/* Loading overlay */}
         {status === 'loading' && (
           <div className="absolute bottom-4 left-4 right-4 bg-black/70 rounded-xl p-4 text-white text-sm text-center">
             <div className="w-6 h-6 border-2 border-turmeric-400 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
@@ -227,7 +305,6 @@ export default function CameraScanner({ onAddItems, onClose }) {
           </div>
         )}
 
-        {/* Live detections overlay */}
         {status === 'ready' && foodPreds.length > 0 && (
           <div className="absolute top-4 right-4 bg-black/70 backdrop-blur rounded-xl p-3 max-w-48">
             <p className="text-white/60 text-xs font-semibold uppercase tracking-wide mb-2">Detected</p>
@@ -245,7 +322,6 @@ export default function CameraScanner({ onAddItems, onClose }) {
           </div>
         )}
 
-        {/* Scan guide */}
         {status === 'ready' && foodPreds.length === 0 && (
           <div className="absolute inset-0 flex items-end justify-center pb-32 pointer-events-none">
             <div className="bg-black/60 backdrop-blur rounded-xl px-5 py-3 text-white text-sm text-center">
@@ -274,15 +350,13 @@ export default function CameraScanner({ onAddItems, onClose }) {
             🔄
           </button>
 
-          {/* Main action */}
+          {/* Stop scanning button */}
           <button
-            onClick={addToList}
-            disabled={detectedItems.size === 0}
-            className="flex-1 bg-gradient-to-r from-sage-400 to-sage-500 text-white font-bold py-3 rounded-xl hover:from-sage-500 hover:to-sage-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={stopScanning}
+            disabled={status !== 'ready'}
+            className="flex-1 bg-gradient-to-r from-turmeric-400 to-coral-400 text-white font-bold py-3 rounded-xl hover:from-turmeric-500 hover:to-coral-500 transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {detectedItems.size === 0
-              ? 'Scan something first'
-              : `✅ Add ${detectedItems.size} item${detectedItems.size > 1 ? 's' : ''} to my list`}
+            ⏹ Stop & Review List
           </button>
 
           {/* Clear */}
