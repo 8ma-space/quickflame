@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useLanguage } from '../context/LanguageContext.jsx'
 import { ALL_APPROVED_FLAT, INFLAMMATORY } from '../data/foods.js'
 import { RECIPES } from '../data/recipes.js'
@@ -160,6 +160,49 @@ function Column({ title, icon, count, items, colorBorder, colorTitle, dotColor, 
   )
 }
 
+function ShoppingListPanel({ title, desc, items, allGood, printLabel, onPrint, accentColor }) {
+  const border  = accentColor === 'sage' ? 'border-sage-200'    : 'border-turmeric-200'
+  const bg      = accentColor === 'sage' ? 'from-sage-50 to-turmeric-50' : 'from-turmeric-50 to-sage-50'
+  const chip    = accentColor === 'sage' ? 'bg-sage-100 text-sage-700'   : 'bg-turmeric-100 text-turmeric-700'
+  const checkbox= accentColor === 'sage' ? 'border-sage-400'    : 'border-turmeric-300'
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-4 px-1">
+        <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">{title}</p>
+        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${chip}`}>{items.length} items</span>
+      </div>
+      <div className={`bg-gradient-to-r ${bg} border ${border} rounded-2xl p-5 mb-5`}>
+        <p className="text-stone-700 text-sm leading-relaxed"><strong>{title}.</strong> {desc}</p>
+      </div>
+      {items.length === 0 ? (
+        <div className="text-center py-10 text-stone-400">
+          <div className="text-5xl mb-3">🎉</div>
+          <p className="font-medium">{allGood}</p>
+        </div>
+      ) : (
+        <div className="bg-white border border-stone-100 rounded-2xl divide-y divide-stone-50 shadow-sm slide-up">
+          {items.map((item, i) => (
+            <div key={i} className="flex items-start gap-4 px-5 py-3.5">
+              <span className={`flex-shrink-0 w-5 h-5 rounded border-2 ${checkbox} mt-0.5`} />
+              <div className="flex-1 min-w-0">
+                <span className="font-semibold text-stone-800 capitalize">{item.ingredient}</span>
+                <span className="ml-2 text-xs text-stone-400">
+                  {item.recipes.slice(0, 3).join(', ')}{item.recipes.length > 3 ? ` +${item.recipes.length - 3}` : ''}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="mt-5 text-center no-print">
+        <button onClick={onPrint} className="inline-flex items-center gap-2 text-sm text-stone-400 hover:text-stone-600 transition-colors font-medium">
+          {printLabel}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function Skeleton() {
   return (
     <div className="rounded-2xl overflow-hidden bg-white shadow-sm">
@@ -198,8 +241,7 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
     setVoice(false)
   }
 
-  const printShoppingList = (shoppingList, week) => {
-    const title = t('planner.shopTitle')
+  const printShoppingList = (shoppingList, week, title = t('planner.shopTitle')) => {
     const rows = shoppingList
       .map(item => `<tr><td style="padding:7px 16px 7px 0;border-bottom:1px solid #f0ede8;font-size:14px;text-transform:capitalize;vertical-align:top;">${item.ingredient}</td><td style="padding:7px 0;border-bottom:1px solid #f0ede8;font-size:12px;color:#888;vertical-align:top;">${item.recipes.join(', ')}</td></tr>`)
       .join('')
@@ -224,7 +266,7 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
     setTimeout(() => {
       const classified   = classifyFoods(groceries)
       const { week, single } = generatePlan(classified.approved, prefs, calMode, weekMode)
-      const shoppingList = buildShoppingList(week, classified.approved)
+      const weekShoppingList = buildShoppingList(week, classified.approved)
 
       if (classified.inflammatory.length)
         addToast(`${classified.inflammatory.length} inflammatory item${classified.inflammatory.length > 1 ? 's' : ''} flagged`, 'warning')
@@ -233,7 +275,7 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
       else
         addToast('No recipes match — try adjusting preferences', 'warning')
 
-      setResult({ classified, week, single, shoppingList })
+      setResult({ classified, week, single, weekShoppingList, approvedItems: classified.approved })
       setLoading(false)
     }, 1500)
   }
@@ -243,6 +285,12 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
   const mealLabels = t('planner.mealLabels')
   const dayShort   = t('planner.dayShort')
   const dayNames   = t('planner.dayNames')
+
+  // Recomputed whenever the active day tab changes
+  const dayShoppingList = useMemo(
+    () => result ? buildShoppingList([result.week[activeDay] ?? []], result.approvedItems) : [],
+    [result, activeDay]
+  )
 
   return (
     <section id="planner" className="py-20 bg-gradient-to-b from-stone-50 to-sage-50/30">
@@ -415,46 +463,41 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
               )}
             </div>
 
-            {/* Shopping list */}
-            <div>
-              <div className="flex items-center gap-3 mb-4 px-1">
-                <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">{t('planner.shopTitle')}</p>
-                <span className="bg-turmeric-100 text-turmeric-700 text-xs font-bold px-2.5 py-1 rounded-full">{result.shoppingList.length} items</span>
+            {/* Shopping list(s) */}
+            {result.single ? (
+              /* ── Single day: one list ── */
+              <ShoppingListPanel
+                title={t('planner.shopTitle')}
+                desc={t('planner.shopDesc')}
+                items={result.weekShoppingList}
+                allGood={t('planner.allGood')}
+                printLabel={t('planner.printShop')}
+                onPrint={() => printShoppingList(result.weekShoppingList, result.week, t('planner.shopTitle'))}
+                accentColor="turmeric"
+              />
+            ) : (
+              /* ── Week mode: day list + full-week list ── */
+              <div className="space-y-8">
+                <ShoppingListPanel
+                  title={`${t('planner.dayShopTitle')} — ${dayNames[activeDay]}`}
+                  desc={t('planner.shopDesc')}
+                  items={dayShoppingList}
+                  allGood={t('planner.allGood')}
+                  printLabel={t('planner.printShop')}
+                  onPrint={() => printShoppingList(dayShoppingList, [result.week[activeDay]], `${t('planner.dayShopTitle')} — ${dayNames[activeDay]}`)}
+                  accentColor="turmeric"
+                />
+                <ShoppingListPanel
+                  title={t('planner.weekShopTitle')}
+                  desc={t('planner.shopDesc')}
+                  items={result.weekShoppingList}
+                  allGood={t('planner.allGood')}
+                  printLabel={t('planner.printShop')}
+                  onPrint={() => printShoppingList(result.weekShoppingList, result.week, t('planner.weekShopTitle'))}
+                  accentColor="sage"
+                />
               </div>
-
-              <div className="bg-gradient-to-r from-turmeric-50 to-sage-50 border border-turmeric-200 rounded-2xl p-5 mb-6">
-                <p className="text-stone-700 text-sm leading-relaxed">
-                  <strong>{t('planner.shopTitle')}.</strong> {t('planner.shopDesc')}
-                </p>
-              </div>
-
-              {result.shoppingList.length === 0 ? (
-                <div className="text-center py-10 text-stone-400">
-                  <div className="text-5xl mb-3">🎉</div>
-                  <p className="font-medium">{t('planner.allGood')}</p>
-                </div>
-              ) : (
-                <div className="bg-white border border-stone-100 rounded-2xl divide-y divide-stone-50 shadow-sm slide-up">
-                  {result.shoppingList.map((item, i) => (
-                    <div key={i} className="flex items-start gap-4 px-5 py-3.5">
-                      <span className="flex-shrink-0 w-5 h-5 rounded border-2 border-turmeric-300 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <span className="font-semibold text-stone-800 capitalize">{item.ingredient}</span>
-                        <span className="ml-2 text-xs text-stone-400">
-                          {item.recipes.slice(0, 3).join(', ')}{item.recipes.length > 3 ? ` +${item.recipes.length - 3}` : ''}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-6 text-center no-print">
-                <button onClick={() => printShoppingList(result.shoppingList, result.week)} className="inline-flex items-center gap-2 text-sm text-stone-400 hover:text-stone-600 transition-colors font-medium">
-                  {t('planner.printShop')}
-                </button>
-              </div>
-            </div>
+            )}
 
           </div>
         )}
