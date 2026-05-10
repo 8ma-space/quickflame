@@ -5,6 +5,7 @@ import { recipeMatchesPreferences } from '../data/diets.js'
 import MealCard from './MealCard.jsx'
 import RecipeModal from './RecipeModal.jsx'
 import CameraScanner from './CameraScanner.jsx'
+import VoiceScanner from './VoiceScanner.jsx'
 import DietPreferences from './DietPreferences.jsx'
 
 const normalize = (s) => s.toLowerCase().replace(/[^a-z\s]/g, '').trim()
@@ -115,6 +116,7 @@ export default function GroceryScanner({ addToast, prefs, onPrefsChange }) {
   const [loading, setLoading] = useState(false)
   const [modal, setModal]     = useState(null)
   const [camera, setCamera]   = useState(false)
+  const [voice, setVoice]     = useState(false)
   const [tab, setTab]         = useState('recipes') // 'recipes' | 'shopping'
 
   useEffect(() => { localStorage.setItem('qf_groceries', input) }, [input])
@@ -122,6 +124,11 @@ export default function GroceryScanner({ addToast, prefs, onPrefsChange }) {
   const handleCameraItems = (items) => {
     setInput(prev => prev ? `${prev}, ${items.join(', ')}` : items.join(', '))
     setCamera(false)
+  }
+
+  const handleVoiceItems = (items) => {
+    setInput(prev => prev ? `${prev}, ${items.join(', ')}` : items.join(', '))
+    setVoice(false)
   }
 
   const scan = () => {
@@ -146,6 +153,7 @@ export default function GroceryScanner({ addToast, prefs, onPrefsChange }) {
     <section id="scanner" className="py-20 bg-gradient-to-b from-stone-50 to-sage-50/30">
       {modal  && <RecipeModal recipe={modal} calMode={false} onClose={() => setModal(null)} />}
       {camera && <CameraScanner onAddItems={handleCameraItems} onClose={() => setCamera(false)} />}
+      {voice  && <VoiceScanner  onAddItems={handleVoiceItems}  onClose={() => setVoice(false)} />}
 
       <div className="max-w-5xl mx-auto px-4">
 
@@ -171,12 +179,20 @@ export default function GroceryScanner({ addToast, prefs, onPrefsChange }) {
             <label className="text-sm font-semibold text-stone-700">
               Your groceries (one per line or comma-separated):
             </label>
-            <button
-              onClick={() => setCamera(true)}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-turmeric-400 to-coral-400 text-white text-xs font-bold px-3 py-2 rounded-xl hover:from-turmeric-500 hover:to-coral-500 transition-all shadow-sm hover:-translate-y-0.5"
-            >
-              📷 Scan with Camera
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setVoice(true)}
+                className="flex items-center gap-1.5 bg-gradient-to-r from-sage-400 to-sage-500 text-white text-xs font-bold px-3 py-2 rounded-xl hover:from-sage-500 hover:to-sage-600 transition-all shadow-sm hover:-translate-y-0.5"
+              >
+                🎤 Speak Items
+              </button>
+              <button
+                onClick={() => setCamera(true)}
+                className="flex items-center gap-1.5 bg-gradient-to-r from-turmeric-400 to-coral-400 text-white text-xs font-bold px-3 py-2 rounded-xl hover:from-turmeric-500 hover:to-coral-500 transition-all shadow-sm hover:-translate-y-0.5"
+              >
+                📷 Scan with Camera
+              </button>
+            </div>
           </div>
           <textarea
             value={input}
