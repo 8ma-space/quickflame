@@ -1,13 +1,20 @@
 import { useState } from 'react'
 import { RECIPES } from '../data/recipes.js'
+import { recipeMatchesPreferences } from '../data/diets.js'
 import MealCard from './MealCard.jsx'
 import RecipeModal from './RecipeModal.jsx'
+import DietPreferences from './DietPreferences.jsx'
 
 const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5)
 
-function generatePlan() {
-  const pick = (type) => shuffle(RECIPES.filter(r => r.type === type))[0]
-  return [pick('breakfast'), pick('lunch'), pick('dinner'), ...shuffle(RECIPES.filter(r => r.type === 'snack')).slice(0, 2)]
+function generatePlan(prefs) {
+  const ok = (r) => recipeMatchesPreferences(r, prefs.dietId, prefs.allergies)
+  const pick = (type) => shuffle(RECIPES.filter(r => r.type === type && ok(r)))[0]
+  const b = pick('breakfast')
+  const l = pick('lunch')
+  const d = pick('dinner')
+  const snacks = shuffle(RECIPES.filter(r => r.type === 'snack' && ok(r))).slice(0, 2)
+  return [b, l, d, ...snacks].filter(Boolean)
 }
 
 function Skeleton() {
@@ -25,7 +32,7 @@ function Skeleton() {
 
 const LABELS = ['Breakfast', 'Lunch', 'Dinner', 'Snack 1', 'Snack 2']
 
-export default function MealPlanGenerator({ addToast }) {
+export default function MealPlanGenerator({ addToast, prefs, onPrefsChange }) {
   const [calMode, setCalMode] = useState(false)
   const [plan, setPlan]       = useState(null)
   const [loading, setLoading] = useState(false)
@@ -35,9 +42,14 @@ export default function MealPlanGenerator({ addToast }) {
     setLoading(true)
     setPlan(null)
     setTimeout(() => {
-      setPlan(generatePlan())
+      const result = generatePlan(prefs)
+      if (result.length < 3) {
+        addToast('Not enough recipes match your diet — try adjusting preferences', 'warning')
+      } else {
+        addToast('Plan generated! ✨', 'success')
+      }
+      setPlan(result)
       setLoading(false)
-      addToast('Plan generated! ✨', 'success')
     }, 1500)
   }
 
@@ -56,9 +68,13 @@ export default function MealPlanGenerator({ addToast }) {
         <p className="text-stone-500 max-w-lg mx-auto">One click generates a full day of anti-inflammatory meals that taste as good as they make you feel.</p>
       </div>
 
+      {/* Diet preferences */}
+      <div className="max-w-2xl mx-auto">
+        <DietPreferences dietId={prefs.dietId} allergies={prefs.allergies} onChange={onPrefsChange} />
+      </div>
+
       {/* Controls */}
       <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
-        {/* Mode toggle */}
         <div className="bg-white rounded-2xl p-1.5 flex gap-1 shadow-sm border border-stone-100">
           <button
             onClick={() => setCalMode(false)}
@@ -111,18 +127,28 @@ export default function MealPlanGenerator({ addToast }) {
       {/* Plan cards */}
       {plan && !loading && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {plan.map((recipe, i) => (
-              <div key={recipe.id} className="slide-up" style={{ animationDelay: `${i * 80}ms` }}>
-                <MealCard recipe={recipe} calMode={calMode} label={LABELS[i]} onExpand={setModal} />
+          {plan.length === 0 ? (
+            <div className="text-center py-12 text-stone-400">
+              <div className="text-5xl mb-3">🥗</div>
+              <p className="font-medium">No recipes match your current diet and allergy settings.</p>
+              <p className="text-sm mt-1">Try adjusting your preferences above.</p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {plan.map((recipe, i) => (
+                  <div key={recipe.id} className="slide-up" style={{ animationDelay: `${i * 80}ms` }}>
+                    <MealCard recipe={recipe} calMode={calMode} label={LABELS[i]} onExpand={setModal} />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="text-center mt-8 no-print">
-            <button onClick={() => window.print()} className="text-sm text-stone-400 hover:text-stone-600 transition-colors font-medium">
-              🖨 Print this plan
-            </button>
-          </div>
+              <div className="text-center mt-8 no-print">
+                <button onClick={() => window.print()} className="text-sm text-stone-400 hover:text-stone-600 transition-colors font-medium">
+                  🖨 Print this plan
+                </button>
+              </div>
+            </>
+          )}
         </>
       )}
     </section>

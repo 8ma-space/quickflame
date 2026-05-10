@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { ALL_APPROVED_FLAT, INFLAMMATORY } from '../data/foods.js'
 import { RECIPES } from '../data/recipes.js'
+import { recipeMatchesPreferences } from '../data/diets.js'
 import MealCard from './MealCard.jsx'
 import RecipeModal from './RecipeModal.jsx'
 import CameraScanner from './CameraScanner.jsx'
+import DietPreferences from './DietPreferences.jsx'
 
 const normalize = (s) => s.toLowerCase().replace(/[^a-z\s]/g, '').trim()
 
@@ -31,10 +33,11 @@ function matchScore(recipe, normalizedHave) {
 }
 
 // Recipes the user can make right now (sorted by how many ingredients they have)
-function recipesCanMake(approvedItems) {
+function recipesCanMake(approvedItems, prefs) {
   if (!approvedItems.length) return []
   const normalized = approvedItems.map(normalize)
   return RECIPES
+    .filter(r => recipeMatchesPreferences(r, prefs.dietId, prefs.allergies))
     .map(r => ({ ...r, matchScore: matchScore(r, normalized) }))
     .filter(r => r.matchScore > 0)
     .sort((a, b) => b.matchScore - a.matchScore)
@@ -106,7 +109,7 @@ function TabBtn({ active, onClick, children }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function GroceryScanner({ addToast }) {
+export default function GroceryScanner({ addToast, prefs, onPrefsChange }) {
   const [input, setInput]     = useState(() => localStorage.getItem('qf_groceries') || '')
   const [result, setResult]   = useState(null)
   const [loading, setLoading] = useState(false)
@@ -127,7 +130,7 @@ export default function GroceryScanner({ addToast }) {
     setResult(null)
     setTimeout(() => {
       const classified   = classifyFoods(input)
-      const canMake      = recipesCanMake(classified.approved)
+      const canMake      = recipesCanMake(classified.approved, prefs)
       const shoppingList = buildShoppingList(classified.approved)
       setResult({ ...classified, canMake, shoppingList })
       setTab('recipes')
@@ -155,6 +158,11 @@ export default function GroceryScanner({ addToast }) {
           <p className="text-stone-500 max-w-lg mx-auto">
             Submit your groceries to see what you can cook today — and exactly what to buy for a full week of anti-inflammatory meal prep.
           </p>
+        </div>
+
+        {/* ── Diet preferences ── */}
+        <div className="max-w-2xl mx-auto">
+          <DietPreferences dietId={prefs.dietId} allergies={prefs.allergies} onChange={onPrefsChange} />
         </div>
 
         {/* ── Input card ── */}

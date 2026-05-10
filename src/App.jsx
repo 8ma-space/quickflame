@@ -8,8 +8,15 @@ import RecipeBrowser from './components/RecipeBrowser.jsx'
 import EducationStrip from './components/EducationStrip.jsx'
 import ApprovedFoods from './components/ApprovedFoods.jsx'
 
+const defaultPrefs = { dietId: 'no-limit', allergies: '' }
+
+function loadPrefs() {
+  try { return JSON.parse(localStorage.getItem('qf_prefs')) || defaultPrefs } catch { return defaultPrefs }
+}
+
 export default function App() {
-  const [active, setActive] = useState('hero')
+  const [active, setActive]   = useState('hero')
+  const [prefs, setPrefs]     = useState(loadPrefs)
 
   const scrollTo = useCallback((id) => {
     const el = document.getElementById(id)
@@ -30,6 +37,11 @@ export default function App() {
     return () => observer.disconnect()
   }, [])
 
+  const savePrefs = useCallback((newPrefs) => {
+    setPrefs(newPrefs)
+    localStorage.setItem('qf_prefs', JSON.stringify(newPrefs))
+  }, [])
+
   const addToast = useCallback((msg, type = 'success') => {
     const styles = {
       success: { style: { background: '#7c9a6e', color: 'white', fontWeight: '600' }, iconTheme: { primary: 'white', secondary: '#7c9a6e' } },
@@ -44,9 +56,9 @@ export default function App() {
       <Toaster position="bottom-right" toastOptions={{ duration: 3500 }} />
       <Navbar active={active} scrollTo={scrollTo} />
       <Hero scrollTo={scrollTo} />
-      <MealPlanGenerator addToast={addToast} />
+      <MealPlanGenerator addToast={addToast} prefs={prefs} onPrefsChange={savePrefs} />
       <EducationStrip />
-      <GroceryScanner addToast={addToast} />
+      <GroceryScanner addToast={addToast} prefs={prefs} onPrefsChange={savePrefs} />
       <RecipeBrowser />
       <ApprovedFoods />
       <footer className="bg-sage-900 text-white/60 text-center py-10 text-sm">
