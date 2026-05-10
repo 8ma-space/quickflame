@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Toaster, toast } from 'react-hot-toast'
 import Navbar from './components/Navbar.jsx'
 import Hero from './components/Hero.jsx'
-import MealPlanGenerator from './components/MealPlanGenerator.jsx'
-import GroceryScanner from './components/GroceryScanner.jsx'
+import MealPlanner from './components/MealPlanner.jsx'
 import RecipeBrowser from './components/RecipeBrowser.jsx'
 import EducationStrip from './components/EducationStrip.jsx'
 import ApprovedFoods from './components/ApprovedFoods.jsx'
@@ -15,8 +14,8 @@ function loadPrefs() {
 }
 
 export default function App() {
-  const [active, setActive]   = useState('hero')
-  const [prefs, setPrefs]     = useState(loadPrefs)
+  const [active, setActive] = useState('hero')
+  const [prefs, setPrefs]   = useState(loadPrefs)
 
   const scrollTo = useCallback((id) => {
     const el = document.getElementById(id)
@@ -25,7 +24,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const sections = ['hero', 'planner', 'scanner', 'recipes', 'approved']
+    const sections = ['hero', 'planner', 'recipes', 'approved']
     const observer = new IntersectionObserver(
       entries => entries.forEach(e => { if (e.isIntersecting) setActive(e.target.id) }),
       { threshold: 0.3 }
@@ -56,9 +55,8 @@ export default function App() {
       <Toaster position="bottom-right" toastOptions={{ duration: 3500 }} />
       <Navbar active={active} scrollTo={scrollTo} />
       <Hero scrollTo={scrollTo} />
-      <MealPlanGenerator addToast={addToast} prefs={prefs} onPrefsChange={savePrefs} />
+      <MealPlanner addToast={addToast} prefs={prefs} onPrefsChange={savePrefs} />
       <EducationStrip />
-      <GroceryScanner addToast={addToast} prefs={prefs} onPrefsChange={savePrefs} />
       <RecipeBrowser />
       <ApprovedFoods />
       <footer className="bg-sage-900 text-white/60 text-center py-10 text-sm">

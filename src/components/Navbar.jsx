@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 
 const LINKS = [
   { id: 'planner',  label: 'Meal Planner' },
-  { id: 'scanner',  label: 'My Groceries' },
   { id: 'recipes',  label: 'Recipes' },
   { id: 'approved', label: 'Approved Foods' },
 ]
