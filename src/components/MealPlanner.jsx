@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useLanguage } from '../context/LanguageContext.jsx'
 import { ALL_APPROVED_FLAT, INFLAMMATORY } from '../data/foods.js'
 import { RECIPES } from '../data/recipes.js'
@@ -11,6 +11,55 @@ import DietPreferences from './DietPreferences.jsx'
 
 const normalize = (s) => s.toLowerCase().replace(/[^a-z\s]/g, '').trim()
 const shuffle   = (arr) => [...arr].sort(() => Math.random() - 0.5)
+
+// ── Instruction parser ────────────────────────────────────────────────────────
+
+const KNOWN_PROTEINS = [
+  'beef','chicken','turkey','fish','salmon','tuna','bison','lamb','pork',
+  'shrimp','eggs','egg','cod','halibut','tilapia','sardines','anchovies',
+  'tofu','tempeh','lentils','beans','chickpeas','duck','venison','crab',
+  'lobster','scallops','trout','herring','mackerel',
+]
+const FREQ_WORDS = { once: 1, twice: 2, thrice: 3 }
+
+function parseInstructions(text) {
+  if (!text.trim()) return []
+  const lower = text.toLowerCase()
+  const requirements = []
+  const freqRe = /\b(\d+|once|twice|thrice)\b\s*(?:times?|x)?\s*(?:a|per)?\s*week/gi
+  let m
+  while ((m = freqRe.exec(lower)) !== null) {
+    const raw = m[1].toLowerCase()
+    const count = FREQ_WORDS[raw] ?? parseInt(m[1])
+    if (isNaN(count) || count < 1 || count > 7) continue
+    const start = Math.max(0, m.index - 60)
+    const end   = Math.min(lower.length, m.index + m[0].length + 60)
+    const ctx   = lower.substring(start, end)
+    for (const protein of KNOWN_PROTEINS) {
+      if (ctx.includes(protein)) {
+        const existing = requirements.find(r => r.ingredient === protein)
+        if (existing) existing.count = Math.max(existing.count, count)
+        else requirements.push({ ingredient: protein, count })
+        break
+      }
+    }
+  }
+  // Fallback: no frequency found — extract any protein mention with count 1
+  if (requirements.length === 0) {
+    for (const protein of KNOWN_PROTEINS) {
+      if (lower.includes(protein)) requirements.push({ ingredient: protein, count: 1 })
+    }
+  }
+  return requirements
+}
+
+function buildDayTargets(requirements) {
+  const targets = Array.from({ length: 7 }, () => [])
+  requirements.forEach(({ ingredient, count }) => {
+    shuffle([0, 1, 2, 3, 4, 5, 6]).slice(0, Math.min(count, 7)).forEach(d => targets[d].push(ingredient))
+  })
+  return targets
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -36,11 +85,26 @@ function matchScore(recipe, normalizedHave) {
 }
 
 // Pick one recipe of a given type, excluding already-used IDs
-function pickBest(type, eligible, normalized, usedIds) {
-  const pool = eligible.filter(r => r.type === type && !usedIds.has(r.id))
-  const fallback = eligible.filter(r => r.type === type) // allow reuse if pool exhausted
-  const source = pool.length ? pool : fallback
+function pickBest(type, eligible, normalized, usedIds, targetIngredients = []) {
+  const pool     = eligible.filter(r => r.type === type && !usedIds.has(r.id))
+  const fallback = eligible.filter(r => r.type === type)
+  const source   = pool.length ? pool : fallback
   if (!source.length) return null
+
+  // For lunch/dinner, try to honour target ingredients first
+  if (targetIngredients.length > 0 && (type === 'lunch' || type === 'dinner')) {
+    for (const target of targetIngredients) {
+      const hits = source.filter(r => {
+        const text = r.ingredients.join(' ').toLowerCase() + ' ' + r.name.toLowerCase()
+        return text.includes(target)
+      })
+      if (hits.length > 0) {
+        const r = shuffle(hits)[0]
+        usedIds.add(r.id)
+        return r
+      }
+    }
+  }
 
   if (!normalized.length) {
     const r = shuffle(source)[0]
@@ -58,10 +122,10 @@ function pickBest(type, eligible, normalized, usedIds) {
 }
 
 // Generate meals for one day
-function generateDay(eligible, normalized, usedIds, calMode) {
+function generateDay(eligible, normalized, usedIds, calMode, targetIngredients = []) {
   const breakfast = pickBest('breakfast', eligible, normalized, usedIds)
-  const lunch     = pickBest('lunch',     eligible, normalized, usedIds)
-  const dinner    = pickBest('dinner',    eligible, normalized, usedIds)
+  const lunch     = pickBest('lunch',     eligible, normalized, usedIds, targetIngredients)
+  const dinner    = pickBest('dinner',    eligible, normalized, usedIds, targetIngredients)
 
   const snackPool = eligible
     .filter(r => r.type === 'snack' && !usedIds.has(r.id))
@@ -83,19 +147,23 @@ function generateDay(eligible, normalized, usedIds, calMode) {
   return meals
 }
 
-function generatePlan(approvedItems, prefs, calMode, weekMode) {
-  const normalized = approvedItems.map(normalize)
-  const eligible   = RECIPES.filter(r => recipeMatchesPreferences(r, prefs.dietId, prefs.allergies))
-  const usedIds    = new Set()
+function generatePlan(approvedItems, prefs, calMode, weekMode, instructions = '') {
+  const normalized   = approvedItems.map(normalize)
+  const eligible     = RECIPES.filter(r => recipeMatchesPreferences(r, prefs.dietId, prefs.allergies))
+  const usedIds      = new Set()
+  const requirements = parseInstructions(instructions)
+  const dayTargets   = requirements.length > 0 ? buildDayTargets(requirements) : []
 
   if (!weekMode) {
-    const meals = generateDay(eligible, normalized, usedIds, calMode)
+    const targets = dayTargets.length > 0 ? dayTargets[0] : []
+    const meals = generateDay(eligible, normalized, usedIds, calMode, targets)
     return { week: [meals], single: true }
   }
 
   const week = []
   for (let d = 0; d < 7; d++) {
-    week.push(generateDay(eligible, normalized, usedIds, calMode))
+    const targets = dayTargets.length > 0 ? dayTargets[d] : []
+    week.push(generateDay(eligible, normalized, usedIds, calMode, targets))
   }
   return { week, single: false }
 }
@@ -220,7 +288,10 @@ function Skeleton() {
 
 export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
   const { t } = useLanguage()
-  const [groceries, setGroceries] = useState(() => localStorage.getItem('qf_groceries') || '')
+  const [groceries,      setGroceries]      = useState(() => localStorage.getItem('qf_groceries') || '')
+  const [instructions,   setInstructions]   = useState(() => localStorage.getItem('qf_instructions') || '')
+  const [instrListening, setInstrListening] = useState(false)
+  const instrRecRef = useRef(null)
   const [calMode,   setCalMode]   = useState(false)
   const [weekMode,  setWeekMode]  = useState(false)
   const [loading,   setLoading]   = useState(false)
@@ -230,7 +301,30 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
   const [camera,    setCamera]    = useState(false)
   const [voice,     setVoice]     = useState(false)
 
-  useEffect(() => { localStorage.setItem('qf_groceries', groceries) }, [groceries])
+  useEffect(() => { localStorage.setItem('qf_groceries',     groceries)    }, [groceries])
+  useEffect(() => { localStorage.setItem('qf_instructions', instructions) }, [instructions])
+
+  const toggleInstrMic = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) return
+    if (instrListening) {
+      instrRecRef.current?.stop()
+      return
+    }
+    const rec = new SR()
+    rec.continuous = false
+    rec.interimResults = false
+    rec.onresult = (e) => {
+      const text = e.results[0][0].transcript
+      setInstructions(prev => prev ? prev + '. ' + text : text)
+    }
+    rec.onend = () => setInstrListening(false)
+    rec.start()
+    setInstrListening(true)
+    instrRecRef.current = rec
+  }
+
+  const parsedRequirements = useMemo(() => parseInstructions(instructions), [instructions])
 
   const handleCameraItems = (items) => {
     setGroceries(prev => prev ? `${prev}, ${items.join(', ')}` : items.join(', '))
@@ -265,7 +359,7 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
     setActiveDay(0)
     setTimeout(() => {
       const classified   = classifyFoods(groceries)
-      const { week, single } = generatePlan(classified.approved, prefs, calMode, weekMode)
+      const { week, single } = generatePlan(classified.approved, prefs, calMode, weekMode, instructions)
       const weekShoppingList = buildShoppingList(week, classified.approved)
 
       if (classified.inflammatory.length)
@@ -342,6 +436,53 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
               </button>
               <p className="text-xs text-stone-400">{t('planner.emptyHint')}</p>
             </div>
+          </div>
+        </div>
+
+        {/* ── Step 2.5: Meal Preferences ── */}
+        <div className="mb-6">
+          <p className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-2 px-1">{t('planner.instrStep')}</p>
+          <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-semibold text-stone-700">{t('planner.instrLabel')}</label>
+              {('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) && (
+                <button
+                  onClick={toggleInstrMic}
+                  className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-sm hover:-translate-y-0.5 ${
+                    instrListening
+                      ? 'bg-coral-500 text-white animate-pulse'
+                      : 'bg-gradient-to-r from-sage-400 to-sage-500 text-white hover:from-sage-500 hover:to-sage-600'
+                  }`}
+                >
+                  {instrListening ? '⏹ Stop' : '🎤 Speak'}
+                </button>
+              )}
+            </div>
+            <textarea
+              value={instructions}
+              onChange={e => setInstructions(e.target.value)}
+              placeholder={t('planner.instrPlaceholder')}
+              className="w-full h-24 rounded-xl border border-stone-200 p-4 text-stone-700 placeholder-stone-300 resize-none focus:outline-none focus:ring-2 focus:ring-sage-300 text-sm"
+            />
+            <div className="flex justify-between items-start mt-3 gap-4">
+              <div className="flex-1">
+                {parsedRequirements.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="text-xs text-stone-400 font-semibold self-center">{t('planner.instrParsed')}</span>
+                    {parsedRequirements.map((req, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 bg-sage-100 text-sage-700 border border-sage-200 text-xs font-bold px-2.5 py-1 rounded-full capitalize">
+                        {req.ingredient}
+                        <span className="bg-sage-200 text-sage-800 rounded-full px-1.5 py-0.5 text-xs">{req.count}{t('planner.instrTimes')}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setInstructions('')} className="text-sm text-stone-400 hover:text-stone-600 transition-colors flex-shrink-0">
+                {t('planner.instrClear')}
+              </button>
+            </div>
+            <p className="text-xs text-stone-400 mt-2">{t('planner.instrHint')}</p>
           </div>
         </div>
 
