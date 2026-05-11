@@ -14,6 +14,9 @@ const PROTEINS = [
   { name: 'tuna', cal: 180, img: 'tuna,salad' },
   { name: 'turkey breast', cal: 165, img: 'turkey,lean' },
   { name: 'mackerel', cal: 190, img: 'mackerel,fish' },
+  { name: 'grass-fed beef', cal: 210, img: 'beef,grilled' },
+  { name: 'bison', cal: 195, img: 'bison,meat' },
+  { name: 'lamb', cal: 205, img: 'lamb,grilled' },
 ]
 
 const VEGS = [

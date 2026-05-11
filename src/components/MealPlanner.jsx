@@ -20,20 +20,23 @@ const KNOWN_PROTEINS = [
   'tofu','tempeh','lentils','beans','chickpeas','duck','venison','crab',
   'lobster','scallops','trout','herring','mackerel',
 ]
-const FREQ_WORDS = { once: 1, twice: 2, thrice: 3 }
+const FREQ_WORDS = { once: 1, twice: 2, thrice: 3, daily: 7, everyday: 7 }
 
 function parseInstructions(text) {
   if (!text.trim()) return []
-  const lower = text.toLowerCase()
+  const lower = text.toLowerCase().replace(/every\s+day/g, '7 times a week').replace(/\bdaily\b/g, '7 times a week')
   const requirements = []
-  const freqRe = /\b(\d+|once|twice|thrice)\b\s*(?:times?|x)?\s*(?:a|per)?\s*week/gi
+
+  // Match "N times a week", "once/twice/thrice a week", "N x a week"
+  const freqRe = /\b(\d+|once|twice|thrice)\b\s*(?:times?|x)?\s*(?:a\s+|per\s+)?week/gi
   let m
   while ((m = freqRe.exec(lower)) !== null) {
     const raw = m[1].toLowerCase()
     const count = FREQ_WORDS[raw] ?? parseInt(m[1])
     if (isNaN(count) || count < 1 || count > 7) continue
-    const start = Math.max(0, m.index - 60)
-    const end   = Math.min(lower.length, m.index + m[0].length + 60)
+    // Search 120 chars around the match for a protein name
+    const start = Math.max(0, m.index - 120)
+    const end   = Math.min(lower.length, m.index + m[0].length + 120)
     const ctx   = lower.substring(start, end)
     for (const protein of KNOWN_PROTEINS) {
       if (ctx.includes(protein)) {
@@ -44,12 +47,14 @@ function parseInstructions(text) {
       }
     }
   }
-  // Fallback: no frequency found — extract any protein mention with count 1
-  if (requirements.length === 0) {
-    for (const protein of KNOWN_PROTEINS) {
-      if (lower.includes(protein)) requirements.push({ ingredient: protein, count: 1 })
+
+  // Also scan the whole text for proteins not yet captured (no explicit frequency → count 1)
+  for (const protein of KNOWN_PROTEINS) {
+    if (lower.includes(protein) && !requirements.find(r => r.ingredient === protein)) {
+      requirements.push({ ingredient: protein, count: 1 })
     }
   }
+
   return requirements
 }
 
@@ -95,8 +100,9 @@ function pickBest(type, eligible, normalized, usedIds, targetIngredients = []) {
   if (targetIngredients.length > 0 && (type === 'lunch' || type === 'dinner')) {
     for (const target of targetIngredients) {
       const hits = source.filter(r => {
-        const text = r.ingredients.join(' ').toLowerCase() + ' ' + r.name.toLowerCase()
-        return text.includes(target)
+        const text = [r.name, ...r.ingredients].join(' ').toLowerCase()
+        // "beef" matches "grass-fed beef", "beef sirloin", etc.
+        return text.includes(target) || (target === 'fish' && /salmon|tuna|cod|halibut|tilapia|sardine|mackerel|trout|herring/.test(text))
       })
       if (hits.length > 0) {
         const r = shuffle(hits)[0]
