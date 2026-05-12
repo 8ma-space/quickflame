@@ -1,5 +1,5 @@
 export const APPROVED = {
-  proteins:    ['wild salmon','sardines','mackerel','tuna','chicken breast','turkey','eggs','lentils','black beans','chickpeas','edamame','tofu','tempeh'],
+  proteins:    ['wild salmon','sardines','mackerel','tuna','chicken breast','turkey','eggs','lentils','black beans','chickpeas','edamame','tofu','tempeh','grass-fed beef','bison','lamb'],
   vegetables:  ['spinach','kale','arugula','broccoli','cauliflower','brussels sprouts','sweet potato','beets','carrots','celery','cucumber','zucchini','bell peppers','tomatoes','red onion','garlic','ginger','mushrooms','asparagus','artichoke','bok choy'],
   fruits:      ['blueberries','strawberries','raspberries','blackberries','cherries','pomegranate','oranges','lemon','lime','avocado','apples','pineapple','mango','banana'],
   grains:      ['quinoa','brown rice','oats','farro','buckwheat','whole grain bread'],
