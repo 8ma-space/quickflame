@@ -58,6 +58,17 @@ function parseInstructions(text) {
   return requirements
 }
 
+function findInflammatoryInText(text) {
+  if (!text.trim()) return []
+  const lower = text.toLowerCase()
+  return INFLAMMATORY.filter(item => {
+    const n = item.toLowerCase()
+    // whole-word match to avoid false positives (e.g. "rice" inside "brown rice")
+    const re = new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`)
+    return re.test(lower)
+  })
+}
+
 function buildDayTargets(requirements) {
   const targets = Array.from({ length: 7 }, () => [])
   requirements.forEach(({ ingredient, count }) => {
@@ -330,7 +341,8 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
     instrRecRef.current = rec
   }
 
-  const parsedRequirements = useMemo(() => parseInstructions(instructions), [instructions])
+  const parsedRequirements  = useMemo(() => parseInstructions(instructions),        [instructions])
+  const instrWarnings       = useMemo(() => findInflammatoryInText(instructions),    [instructions])
 
   const handleCameraItems = (items) => {
     setGroceries(prev => prev ? `${prev}, ${items.join(', ')}` : items.join(', '))
@@ -470,6 +482,20 @@ export default function MealPlanner({ addToast, prefs, onPrefsChange }) {
               placeholder={t('planner.instrPlaceholder')}
               className="w-full h-24 rounded-xl border border-stone-200 p-4 text-stone-700 placeholder-stone-300 resize-none focus:outline-none focus:ring-2 focus:ring-sage-300 text-sm"
             />
+            {instrWarnings.length > 0 && (
+              <div className="mt-3 bg-coral-50 border border-coral-200 rounded-xl px-4 py-3 flex items-start gap-3">
+                <span className="text-lg flex-shrink-0">⚠️</span>
+                <div>
+                  <p className="text-coral-700 font-bold text-sm">Doesn't align with the anti-inflammatory program</p>
+                  <p className="text-coral-600 text-xs mt-0.5">
+                    These items are inflammatory and won't be included in your plan:{' '}
+                    <span className="font-semibold capitalize">{instrWarnings.join(', ')}</span>.
+                    Please remove them or choose approved alternatives.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-between items-start mt-3 gap-4">
               <div className="flex-1">
                 {parsedRequirements.length > 0 && (
